@@ -1,7 +1,7 @@
 # Python3 program for stable marriage problem
 
 # Number of Men or Women
-N = 5
+N = 2
 
 
 # This function returns true if
@@ -89,54 +89,15 @@ def stableMarriage(prefer):
     # End of main while loop
 
     # Print solution
-    print("Arms ", " Users")
+    print("advantage player ", " disadvantage player")
     for i in range(N):
-        #print(i + N, "\t", wPartner[i])
-        print(i , "\t", wPartner[i])
-
-    return wPartner
+        print(i, "\t", wPartner[i])
 
 
-import pickle
-import numpy as np
+# Driver Code (first: advantage player, second: disadvantage player)
+prefer = [[3,2], [2,3],[0,1], [1,0],
+          ]
 
-customName = "random"
+stableMarriage(prefer)
 
-noOfTasks = 5
-noOfUsers = 5
-
-T = 5000
-lambda_var = 0.1
-marge = 0.1
-
-pickelFileName = "data/" + str(noOfTasks) + str(noOfUsers) + str(customName)
-with open(pickelFileName + ".pkl", 'rb') as f:
-    task_duration, estimated_task_duration = pickle.load(f)
-
-prefer = []
-# users preferences
-for i in range(noOfUsers):
-    prefer.append(np.flip(noOfUsers + np.argsort(task_duration[i][:])).tolist())
-# arms pferences
-for i in range(noOfTasks):
-    prefer.append(np.argsort(task_duration[:][i]).tolist())
-
-
-
-# Driver Code (first N rows: preferences of men. then preferences of weomen are following.
-#prefer = [[7, 5, 6, 4], [5, 4, 6, 7],
-          #[4, 5, 6, 7], [4, 5, 6, 7],
-          #[0, 1, 2, 3], [0, 1, 2, 3],
-          #[0, 1, 2, 3], [0, 1, 2, 3]]
-
-wPartner = stableMarriage(prefer)
-
-# calculate reward of users
-overallReward = []
-for i in range(noOfTasks):
-    overallReward.append(task_duration[wPartner[i]][i])
-
-print(overallReward)
-print(task_duration)
-print(prefer)
-
+# This code is contributed by Mohit Kumar

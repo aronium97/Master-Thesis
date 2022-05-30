@@ -51,10 +51,8 @@ def stableMarriage(prefer, N):
                     mFree[m1] = False
             i += 1
 
-    # Print solution
-    print("Arms ", " Users")
+    print("advantage player ", " disadvantage player")
     for i in range(N):
-        # print(i + N, "\t", wPartner[i])
         print(i, "\t", wPartner[i])
 
     return wPartner
@@ -75,9 +73,13 @@ def ucb_ca(noOfUsers, noOfTasks, T, estimated_task_durationn, task_duration, mar
     rewardMeasurements = np.zeros([noOfUsers, T])
     taskMeasurements = -1 * np.ones([noOfUsers, T])
     taskPreferenceMeasurements = np.zeros(T)
+    choosenTasksMeasurements = np.zeros([noOfUsers, T])
 
     # algorithm
     for t in range(1, T):
+        print(t)
+        if t == 1000:
+            print("hh")
         for i in range(0, noOfUsers):
             if t == 1:
                 j = np.random.randint(0, noOfTasks)
@@ -103,6 +105,10 @@ def ucb_ca(noOfUsers, noOfTasks, T, estimated_task_durationn, task_duration, mar
                         i])) * plausibleTasks  # todo: nicht mit 0 machen sondern rausnehmen
                     # pull max ucb
                     if np.sum(plausibleTasks) > 0:
+                        #print("now:")
+                        #print(i)
+                        #print(ucbBound)
+                        #print(estimated_task_durationn[i])
                         choosenTasks[i] = np.random.choice(((np.argwhere(ucbBound == np.nanmax(ucbBound)))).flatten())
                         usersCurrentBidOnTask[i] = estimated_task_durationn[i][choosenTasks[i]] * (marge + 1)
                     else:
@@ -114,10 +120,11 @@ def ucb_ca(noOfUsers, noOfTasks, T, estimated_task_durationn, task_duration, mar
         userIterate = np.arange(noOfUsers)
         np.random.shuffle(userIterate)
         for i in userIterate:
+            choosenTasksMeasurements[i][t] = choosenTasks[i]
             if ~(choosenTasks[i] == -1):
                 noOfTimesChoosen[i][choosenTasks[i]] += 1
                 if np.min(usersCurrentBidOnTask[choosenTasks == choosenTasks[i]]) >= usersCurrentBidOnTask[
-                    i]:  # lastBidOnTask[choosenTasks[i]] < usersCurrentBidOnTask[i] or performedTasks[choosenTasks[i]] == i:
+                    i]:
                     performedTasks[choosenTasks[i]] = i
                     lastBidOnTask[choosenTasks[i]] = usersCurrentBidOnTask[i]
                     tasksHaveUser[choosenTasks[i]] = True
@@ -129,7 +136,7 @@ def ucb_ca(noOfUsers, noOfTasks, T, estimated_task_durationn, task_duration, mar
             if i in performedTasks:
                 j = np.where(performedTasks == i)[0][0]
                 noOfTimesVisited[i][j] += 1
-                sampleTaskDuration = np.random.normal(task_duration[i][j])
+                sampleTaskDuration = np.random.normal(loc=task_duration[i][j], scale=0.0)
                 estimated_task_durationn[i][j] = (estimated_task_durationn[i][j] * (
                             noOfTimesVisited[i][j] - 1) + sampleTaskDuration) / noOfTimesVisited[i][j]
                 rewardMeasurements[i][t] = usersCurrentBidOnTask[i] - sampleTaskDuration
@@ -137,7 +144,7 @@ def ucb_ca(noOfUsers, noOfTasks, T, estimated_task_durationn, task_duration, mar
 
         taskPreferenceMeasurements[t] = test_on_preference(task_duration, estimated_task_durationn)
 
-    return rewardMeasurements, taskPreferenceMeasurements, estimated_task_durationn
+    return rewardMeasurements, taskPreferenceMeasurements, estimated_task_durationn, choosenTasksMeasurements, taskMeasurements
 
 
 
@@ -145,15 +152,15 @@ def ucb_ca(noOfUsers, noOfTasks, T, estimated_task_durationn, task_duration, mar
 def print_hi(name):
     customName = "random"
 
-    noOfTasks = 15
-    noOfUsers = 15
+    noOfTasks = 5
+    noOfUsers = 5
     N = noOfUsers  # todo: noch ändern
 
-    T = 40
-    lambda_var = 0.5
+    T = 1500
+    lambda_var = 0.1
     marge = 0.1
 
-    noOfMonteCarloIterations = 2000
+    noOfMonteCarloIterations = 1
 
     pickelFileName = "data/" + str(noOfTasks) + str(noOfUsers) + str(customName)
     with open(pickelFileName + ".pkl", 'rb') as f:
@@ -162,66 +169,107 @@ def print_hi(name):
     rewardMeasurements = {}
     taskPreferenceMeasurements = {}
     estimated_task_duration = {}
+    choosenTasksMeasurements = {}
+    taskMeasurements = {}
     for m in range(noOfMonteCarloIterations):
         print(m)
-        rewardMeasurements_i, taskPreferenceMeasurements_i, estimated_task_duration_i = ucb_ca(noOfUsers, noOfTasks, T, copy.deepcopy(estimated_task_duration_init), task_duration, marge, lambda_var)
+        rewardMeasurements_i, taskPreferenceMeasurements_i, estimated_task_duration_i, choosenTasksMeasurements_i, taskMeasurements_i = ucb_ca(noOfUsers, noOfTasks, T, copy.deepcopy(estimated_task_duration_init), task_duration, marge, lambda_var)
         rewardMeasurements[m] = rewardMeasurements_i
         taskPreferenceMeasurements[m] = taskPreferenceMeasurements_i
         estimated_task_duration[m] = estimated_task_duration_i
+        choosenTasksMeasurements[m] = choosenTasksMeasurements_i
+        taskMeasurements[m] = taskMeasurements_i
 
+
+    #----------------------------------------------------
+    # Driver Code (first: advantage player gives preferences (all coded +N), second: disadvantage player gives preferencesy)
+
+    # advantage: user
     prefer = []
-    # users preferences
+    # users preferences (users prefer longer durations)
     for i in range(noOfUsers):
-        prefer.append(np.flip(noOfUsers + np.argsort(task_duration[i][:])).tolist())
-    # arms pferences
+        prefer.append((noOfUsers + np.flip(np.argsort(task_duration[i][:]))).tolist())
+    # tasks pferences (tasks prefer shorter durations)
     for i in range(noOfTasks):
         prefer.append(np.argsort(task_duration[:][i]).tolist())
+    tasks_of_users_optimal_stablematch = stableMarriage(prefer, N)
 
-    wPartner = stableMarriage(prefer, N)
-
-    # calculate stable optimal reward of users (if perfectly learned + stable matching reached)
-    meanOptimalReward = []
+    # advantage: tasks
+    prefer = []
+    # tasks preferences (tasks prefer shorter durations)
     for i in range(noOfTasks):
-        meanOptimalReward.append(marge*task_duration[wPartner[i]][i])
+        prefer.append((noOfTasks + np.argsort(task_duration[:][i])).tolist())
+    # users pferences
+    for i in range(noOfUsers):
+        prefer.append((np.flip(np.argsort(task_duration[i][:]))).tolist())
+    users_of_tasks_pessimal_stablematch = stableMarriage(prefer, N)
 
-    print(meanOptimalReward)
+    # calculate stable optimal reward of users
+    meanOptimalReward = np.zeros(noOfUsers)
+    optimalAssignment = np.zeros(noOfUsers)
+    for i in range(noOfUsers):
+        meanOptimalReward[i] = marge*task_duration[i][tasks_of_users_optimal_stablematch[i]]
+        optimalAssignment[i] = tasks_of_users_optimal_stablematch[i]
+
+    # calculate stable pessimal reward of users
+    meanPessimalReward = np.zeros(noOfUsers)
+    pessimalAssignment = np.zeros(noOfUsers)
+    for i in range(noOfTasks):
+        meanPessimalReward[users_of_tasks_pessimal_stablematch[i]] = marge * task_duration[users_of_tasks_pessimal_stablematch[i]][i]
+        pessimalAssignment[users_of_tasks_pessimal_stablematch[i]] = i
+
+    print("mean optimal match reward: " + str(meanOptimalReward))
+    print("mean pessimal match reward: " + str(meanPessimalReward))
+    print("stable matching unique?: " + str((optimalAssignment==pessimalAssignment).all()))
+    print("optimal match: " + str(optimalAssignment))
+    print("pessimal match: " + str(pessimalAssignment))
+    print("task duration:")
     print(task_duration)
-    print(prefer)
+    # ----------------------------------------------------
 
     # caluclate metrics
     stableRegret = np.zeros([noOfUsers, T])
-    assigned_preference = np.zeros([1, noOfUsers])
     taskPreference = np.zeros([1, T])
     for m in range(noOfMonteCarloIterations):
         # calculate regret (right now: stable optimal regret! optimal regret should be pessimal regret)
         a = np.zeros([noOfUsers, T])
         for t in range(0, T):
             for i in range(0, noOfUsers):
-                a[i][t] = (meanOptimalReward[i] - rewardMeasurements[m][i][t])
+                a[i][t] = (meanPessimalReward[i] - rewardMeasurements[m][i][t])
                 stableRegret[i][t] = stableRegret[i][t]*m/(1+m) + 1/(m+1)*a[i][t]#t*overallReward[i] - np.cumsum(rewardMeasurements[i])[t]  # t*userPessRegret[i] -
-
-        # caluclate last preference of users
-        assigned_preference = assigned_preference*m/(1+m) +  1/(m+1)*np.sum(task_duration >= np.choose(np.argmax(estimated_task_duration[m], 1), task_duration.T).reshape(-1, 1), 1)
 
         taskPreference = taskPreference*m/(1+m) + taskPreferenceMeasurements[m]*1/(1+m)
 
 
     # plot regret
-    fig, axs = plt.subplots(2, 2)
+    fig, axs = plt.subplots(2, 3)
     axs[0, 0].plot(np.arange(1, T+1), stableRegret.transpose())
+    for i in range(noOfUsers):
+        cc = np.array((meanPessimalReward - meanOptimalReward))
+        axs[0, 0].axhline(y=cc[:][i], color='r', linestyle='--')
+    #axs[0, 0].axhline(y=np.min(meanPessimalReward - meanOptimalReward, 0), color='r', linestyle='--')
     axs[0, 0].set_title('stable regret over time steps')
 
     # plot max regret
     axs[1, 0].plot(np.arange(1, T + 1), np.max(stableRegret, 0))
     axs[1, 0].set_title('maximum regret over time steps')
 
-    # plot last preference of users
-    axs[0, 1].scatter([i for i in range(0,noOfUsers)], assigned_preference, vmin=0, vmax=100)
-    axs[0, 1].set_title('last preferences over users')
-
-    # plot preference over time
+    # plot estimated preferences over time
     axs[1, 1].plot([i for i in range(0, T)], taskPreference.T)
-    axs[1, 1].set_title('mean preference over time')
+    axs[1, 1].set_title('mean estimated user-preference over time')
+
+    # plot choosen arms over time
+    axs[0, 2].plot([i for i in range(0, T)], choosenTasksMeasurements[0].T)
+    axs[0, 2].set_title('choosen arms over time (m=0) \n(legend: optimal ass. from users persp.)')
+    axs[0, 2].legend([i for i in np.argmax(task_duration,1)])
+
+
+    # plot taken arms over time
+    axs[0, 1].plot([i for i in range(0, T)], taskMeasurements[0].T)
+    axs[0, 1].set_title('taken arms over time (m=0) \n(legend: optimal ass. from users persp.)')
+    axs[0, 1].legend([i for i in np.argmax(task_duration, 1)])
+
+
 
 
 
