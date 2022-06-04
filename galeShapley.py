@@ -1,103 +1,72 @@
-# Python3 program for stable marriage problem
-
-# Number of Men or Women
-N = 2
+# NOTE : Please Refer Additional Info section of the ReadMe
+# file for better understanding.
 
 
-# This function returns true if
-# woman 'w' prefers man 'm1' over man 'm'
-def wPrefersM1OverM(prefer, w, m, m1):
-    # Check if w prefers m over her
-    # current engagement m1
-    for i in range(N):
+def stableMatching(n, menPreferences, womenPreferences):
+    # Initially, all n men are unmarried
+    unmarriedMen = list(range(n))
+    # None of the men has a spouse yet, we denote this by the value None
+    manSpouse = [None] * n
+    # None of the women has a spouse yet, we denote this by the value None
+    womanSpouse = [None] * n
+    # Each man made 0 proposals, which means that
+    # his next proposal will be to the woman number 0 in his list
+    nextManChoice = [0] * n
 
-        # If m1 comes before m in list of w,
-        # then w prefers her current engagement,
-        # don't do anything
-        if (prefer[w][i] == m1):
-            return True
+    # While there exists at least one unmarried man:
+    while unmarriedMen:
+        # Pick an arbitrary unmarried man
+        he = unmarriedMen[0]
+        # Store his ranking in this variable for convenience
+        hisPreferences = menPreferences[he]
+        # Find a woman to propose to
+        she = hisPreferences[nextManChoice[he]]
+        # Store her ranking in this variable for convenience
+        herPreferences = womenPreferences[she]
+        # Find the present husband of the selected woman (it might be None)
+        currentHusband = womanSpouse[she]
 
-        # If m comes before m1 in w's list,
-        # then free her current engagement
-        # and engage her with m
-        if (prefer[w][i] == m):
-            return False
-
-
-# Prints stable matching for N boys and N girls.
-# Boys are numbered as 0 to N-1.
-# Girls are numbered as N to 2N-1.
-def stableMarriage(prefer):
-    # Stores partner of women. This is our output
-    # array that stores passing information.
-    # The value of wPartner[i] indicates the partner
-    # assigned to woman N+i. Note that the woman numbers
-    # between N and 2*N-1. The value -1 indicates
-    # that (N+i)'th woman is free
-    wPartner = [-1 for i in range(N)]
-
-    # An array to store availability of men.
-    # If mFree[i] is false, then man 'i' is free,
-    # otherwise engaged.
-    mFree = [False for i in range(N)]
-
-    freeCount = N
-
-    # While there are free men
-    while (freeCount > 0):
-
-        # Pick the first free man (we could pick any)
-        m = 0
-        while (m < N):
-            if (mFree[m] == False):
-                break
-            m += 1
-
-        # One by one go to all women according to
-        # m's preferences. Here m is the picked free man
-        i = 0
-        while i < N and mFree[m] == False:
-            w = prefer[m][i]
-
-            # The woman of preference is free,
-            # w and m become partners (Note that
-            # the partnership maybe changed later).
-            # So we can say they are engaged not married
-            if (wPartner[w - N] == -1):
-                wPartner[w - N] = m
-                mFree[m] = True
-                freeCount -= 1
-
+        # Now "he" proposes to "she".
+        # Decide whether "she" accepts, and update the following fields
+        # 1. manSpouse
+        # 2. womanSpouse
+        # 3. unmarriedMen
+        # 4. nextManChoice
+        if currentHusband == None:
+            # No Husband case
+            # "She" accepts any proposal
+            womanSpouse[she] = he
+            manSpouse[he] = she
+            # "His" nextchoice is the next woman
+            # in the hisPreferences list
+            nextManChoice[he] = nextManChoice[he] + 1
+            # Delete "him" from the
+            # Unmarried list
+            unmarriedMen.pop(0)
+        else:
+            # Husband exists
+            # Check the preferences of the
+            # current husband and that of the proposed man's
+            currentIndex = herPreferences.index(currentHusband)
+            hisIndex = herPreferences.index(he)
+            # Accept the proposal if
+            # "he" has higher preference in the herPreference list
+            if currentIndex > hisIndex:
+                # New stable match is found for "her"
+                womanSpouse[she] = he
+                manSpouse[he] = she
+                nextManChoice[he] = nextManChoice[he] + 1
+                # Pop the newly wed husband
+                unmarriedMen.pop(0)
+                # Now the previous husband is unmarried add
+                # him to the unmarried list
+                unmarriedMen.insert(0, currentHusband)
             else:
+                nextManChoice[he] = nextManChoice[he] + 1
 
-                # If w is not free
-                # Find current engagement of w
-                m1 = wPartner[w - N]
+    return manSpouse
 
-                # If w prefers m over her current engagement m1,
-                # then break the engagement between w and m1 and
-                # engage m with w.
-                if (wPrefersM1OverM(prefer, w, m, m1) == False):
-                    wPartner[w - N] = m
-                    mFree[m] = True
-                    mFree[m1] = False
-            i += 1
-
-            # End of Else
-        # End of the for loop that goes
-        # to all women in m's list
-    # End of main while loop
-
-    # Print solution
-    print("advantage player ", " disadvantage player")
-    for i in range(N):
-        print(i, "\t", wPartner[i])
+# Complexity Upper Bound : O(n^2)
 
 
-# Driver Code (first: advantage player, second: disadvantage player)
-prefer = [[3,2], [2,3],[0,1], [1,0],
-          ]
-
-stableMarriage(prefer)
-
-# This code is contributed by Mohit Kumar
+print(stableMatching(2,[[1,0],[0,1]], [[0,1],[1,0]]))
