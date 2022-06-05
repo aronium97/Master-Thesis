@@ -77,7 +77,7 @@ def test_on_preference(task_duration, estimated_task_duration, noOfTimesVisited,
     return np.mean(assigned_preference)
 
 
-def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, explore_var, maxAllowedMarge, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var):
+def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, explore_var, maxAllowedMarge, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment, noAccessMode):
     # init
     noOfTimesChoosen = np.zeros([noOfUsers, noOfTasks]).astype(int)
     noOfTimesVisited = np.zeros([noOfUsers, noOfTasks]).astype(int)
@@ -92,6 +92,8 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
     estimated_task_reward = np.zeros(([noOfUsers,noOfTasks]))
     estimated_task_duration = np.zeros(([noOfUsers,noOfTasks]))
     noAccessCounter = np.zeros([noOfUsers, noOfTasks])
+    lastBidAccepted = np.zeros([noOfUsers, noOfTasks])
+    lastWasAccepted = np.zeros([noOfUsers,noOfTasks])
     # algorithm
     for t in range(1, T):
         for i in range(0, noOfUsers):
@@ -112,7 +114,17 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
                     for j in range(0, noOfTasks):
                         # zwei teile: einmal obendrüber problem, eimal maxAcceptedBid Problem!
                         noAccessCount = noAccessCounter[i][j]
-                        task_duration_user = estimated_task_duration[i][j] - (noAccessCount*countInfluence_var)*(t>countStartTime)*enableNoAccessCount#np.random.normal(loc=estimated_task_duration[i][j], scale=0*100/(noOfTimesVisited[i][j]+1))#estimated_task_duration[i][j]#np.random.normal(loc=estimated_task_duration[i][j], scale=2)
+                        if noAccessMode == 0:
+                            # mode 0 (ucb)
+                            task_duration_user = estimated_task_duration[i][j] - (noAccessCount*countInfluence_var)*(t>=countStartTime)*enableNoAccessCount#np.random.normal(loc=estimated_task_duration[i][j], scale=0*100/(noOfTimesVisited[i][j]+1))#estimated_task_duration[i][j]#np.random.normal(loc=estimated_task_duration[i][j], scale=2)
+                        else:
+                            # mode 1 (bisection)
+                            lastAcceptedEstimation = lastBidAccepted[i][j] / (1 + marge)
+                            if noAccessCount<countUntilAdjustment or estimated_task_duration[i][j] < lastAcceptedEstimation or lastBidAccepted[i][j]==0 or t<countStartTime:
+                                task_duration_user = estimated_task_duration[i][j]
+                            else:
+                                estimated_task_duration[i][j] = lastAcceptedEstimation + 0.5*(estimated_task_duration[i][j] - lastAcceptedEstimation)
+                                task_duration_user = estimated_task_duration[i][j]
                         testBid = task_duration_user * (marge + 1)
                         maxAcceptedBid = task_duration[i][j]*(1+maxAllowedMarge)# MCSP accepts only this maximum price (see it as a user always bidding)
                         #if testBid>maxAcceptedBid:
@@ -125,8 +137,11 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
                             plausibleTasks[j] = 1
                             testedBids[j] = testBid
                             noAccessCounter[i][j] = np.max([0, noAccessCounter[i][j] - countDegradeRate])
+                            lastBidAccepted[i][j] = np.max([lastBidAccepted[i][j], testBid])
+                            lastWasAccepted[i][j] = True
                         else:
                             noAccessCounter[i][j] += 1
+                            lastWasAccepted[i][j] = False
                     # calculate UCB
                     ucbBound = np.copy(estimated_task_reward[i])
                     ucbBound[plausibleTasks == 0] = np.nan
@@ -205,218 +220,235 @@ def print_hi(name):
 
     deadline = noOfTasks + 1
 
-    T = 5000
+    T = 500
     lambda_var = 0.1
     marge = 0.1
     maxAllowedMarge = 0.11
     explore_var = 10 # 100: start decrasing from t=100
     sampling_noise = 0.4
 
-    enableNoAccessCount = True
-    countDegradeRate = 3
+    enableNoAccessCount_e = [False, True, True]
+    noAccessMode_e = [0, 0, 1]
+    countDegradeRate = 3 # for mode 0
     countStartTime = 100
-    countInfluence_var = 1/1000
+    countInfluence_var = 1/1000 # for mode 0
+    countUntilAdjustment = 4 # for mode 1
 
-    noOfMonteCarloIterations = 10
+    noOfMonteCarloIterations = 100
+
+    noOfExperiments = 3
 
     pickelFileName = "data/" + str(noOfTasks) + str(noOfUsers) + str(customName)
     with open(pickelFileName + ".pkl", 'rb') as f:
         task_duration = pickle.load(f)
 
-    # check for order
-    for i in range(0, noOfTasks):
-        _, counts = np.unique(task_duration[:, i], return_counts=True)
-        if not (counts == 1).all():
-            raise ValueError("no strict ordering of users" + str(task_duration))
+    fig, axs = plt.subplots(3, 4)
 
-    rewardMeasurements = {}
-    taskPreferenceMeasurements = {}
-    estimated_task_duration = {}
-    choosenTasksMeasurements = {}
-    taskMeasurements = {}
-    for m in range(noOfMonteCarloIterations):
-        print(m)
-        rewardMeasurements_i, taskPreferenceMeasurements_i, estimated_task_duration_i, choosenTasksMeasurements_i, taskMeasurements_i = ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, explore_var, maxAllowedMarge, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var)
-        rewardMeasurements[m] = rewardMeasurements_i
-        taskPreferenceMeasurements[m] = taskPreferenceMeasurements_i
-        estimated_task_duration[m] = estimated_task_duration_i
-        choosenTasksMeasurements[m] = choosenTasksMeasurements_i
-        taskMeasurements[m] = taskMeasurements_i
+    for iExperiment in range(noOfExperiments):
+
+        # get from experiment parameters
+        enableNoAccessCount = enableNoAccessCount_e[iExperiment]
+        noAccessMode = noAccessMode_e[iExperiment]
+
+        # check for order
+        for i in range(0, noOfTasks):
+            _, counts = np.unique(task_duration[:, i], return_counts=True)
+            if not (counts == 1).all():
+                raise ValueError("no strict ordering of users" + str(task_duration))
+
+        rewardMeasurements = {}
+        taskPreferenceMeasurements = {}
+        estimated_task_duration = {}
+        choosenTasksMeasurements = {}
+        taskMeasurements = {}
+        for m in range(noOfMonteCarloIterations):
+            print(m)
+            rewardMeasurements_i, taskPreferenceMeasurements_i, estimated_task_duration_i, choosenTasksMeasurements_i, taskMeasurements_i = ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, explore_var, maxAllowedMarge, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment, noAccessMode)
+            rewardMeasurements[m] = rewardMeasurements_i
+            taskPreferenceMeasurements[m] = taskPreferenceMeasurements_i
+            estimated_task_duration[m] = estimated_task_duration_i
+            choosenTasksMeasurements[m] = choosenTasksMeasurements_i
+            taskMeasurements[m] = taskMeasurements_i
 
 
-    #----------------------------------------------------
+        #----------------------------------------------------
 
-    prefer_tasks = []
-    prefer_users = []
-    task_duration_with_deadlines_userview = np.multiply(task_duration, (task_duration < deadline) * 1)
-    task_duration_with_deadlines_taskview = np.multiply(task_duration, (task_duration < deadline) * 1 + (task_duration >= deadline)*10000)
-    # tasks preferences (tasks prefer shorter durations)
-    for i in range(noOfTasks):
-        prefer_tasks.append((np.argsort(task_duration_with_deadlines_taskview[:,i])).tolist())
-    # users pferences
-    for i in range(noOfUsers):
-        prefer_users.append((np.flip(np.argsort(task_duration_with_deadlines_userview[i][:]))).tolist())
+        prefer_tasks = []
+        prefer_users = []
+        task_duration_with_deadlines_userview = np.multiply(task_duration, (task_duration < deadline) * 1)
+        task_duration_with_deadlines_taskview = np.multiply(task_duration, (task_duration < deadline) * 1 + (task_duration >= deadline)*10000)
+        # tasks preferences (tasks prefer shorter durations)
+        for i in range(noOfTasks):
+            prefer_tasks.append((np.argsort(task_duration_with_deadlines_taskview[:,i])).tolist())
+        # users pferences
+        for i in range(noOfUsers):
+            prefer_users.append((np.flip(np.argsort(task_duration_with_deadlines_userview[i][:]))).tolist())
 
-    # advantage: tasks
-    users_of_tasks_pessimal_stablematch = stableMatching(noOfUsers, prefer_tasks, prefer_users)
-    # advantage: users
-    tasks_of_users_optimal_stablematch = stableMatching(noOfUsers, prefer_users, prefer_tasks)
+        # advantage: tasks
+        users_of_tasks_pessimal_stablematch = stableMatching(noOfUsers, prefer_tasks, prefer_users)
+        # advantage: users
+        tasks_of_users_optimal_stablematch = stableMatching(noOfUsers, prefer_users, prefer_tasks)
 
-    # calculate stable optimal reward of users
-    meanOptimalReward = np.zeros(noOfUsers)
-    optimalAssignment = np.zeros(noOfUsers)
-    for i in range(noOfUsers):
-        meanOptimalReward[i] = marge*task_duration[i][tasks_of_users_optimal_stablematch[i]]
-        optimalAssignment[i] = tasks_of_users_optimal_stablematch[i]
+        # calculate stable optimal reward of users
+        meanOptimalReward = np.zeros(noOfUsers)
+        optimalAssignment = np.zeros(noOfUsers)
+        for i in range(noOfUsers):
+            meanOptimalReward[i] = marge*task_duration[i][tasks_of_users_optimal_stablematch[i]]
+            optimalAssignment[i] = tasks_of_users_optimal_stablematch[i]
 
-    # calculate stable pessimal reward of users
-    meanPessimalReward = np.zeros(noOfUsers)
-    pessimalAssignment = np.zeros(noOfUsers)
-    for i in range(noOfTasks):
-        meanPessimalReward[users_of_tasks_pessimal_stablematch[i]] = marge * task_duration[users_of_tasks_pessimal_stablematch[i]][i]
-        pessimalAssignment[users_of_tasks_pessimal_stablematch[i]] = i
+        # calculate stable pessimal reward of users
+        meanPessimalReward = np.zeros(noOfUsers)
+        pessimalAssignment = np.zeros(noOfUsers)
+        for i in range(noOfTasks):
+            meanPessimalReward[users_of_tasks_pessimal_stablematch[i]] = marge * task_duration[users_of_tasks_pessimal_stablematch[i]][i]
+            pessimalAssignment[users_of_tasks_pessimal_stablematch[i]] = i
 
-    print("mean optimal match reward: " + str(meanOptimalReward))
-    print("mean pessimal match reward: " + str(meanPessimalReward))
-    #print("stable matching unique?: " + str((optimalAssignment==pessimalAssignment).all())) # wrong?
-    print("optimal match: " + str(optimalAssignment))
-    print("pessimal match: " + str(pessimalAssignment))
-    print("task duration:")
-    print(task_duration)
-    # ----------------------------------------------------
+        print("mean optimal match reward: " + str(meanOptimalReward))
+        print("mean pessimal match reward: " + str(meanPessimalReward))
+        #print("stable matching unique?: " + str((optimalAssignment==pessimalAssignment).all())) # wrong?
+        print("optimal match: " + str(optimalAssignment))
+        print("pessimal match: " + str(pessimalAssignment))
+        print("task duration:")
+        print(task_duration)
+        # ----------------------------------------------------
 
-    # caluclate metrics
-    stableRegret = np.zeros([noOfUsers, T])
-    taskPreference = np.zeros([1, T])
-    stability = np.zeros(T)
-    for m in range(noOfMonteCarloIterations):
-        for t in range(0, T):
-            # calculate average pessimal regret
-            for i in range(0, noOfUsers):
-                stableRegret[i][t] = stableRegret[i][t]*m/(1+m) + 1/(m+1)*(meanPessimalReward[i] - rewardMeasurements[m][i][t])
+        # caluclate metrics
+        stableRegret = np.zeros([noOfUsers, T])
+        taskPreference = np.zeros([1, T])
+        stability = np.zeros(T)
+        for m in range(noOfMonteCarloIterations):
+            for t in range(0, T):
+                # calculate average pessimal regret
+                for i in range(0, noOfUsers):
+                    stableRegret[i][t] = stableRegret[i][t]*m/(1+m) + 1/(m+1)*(meanPessimalReward[i] - rewardMeasurements[m][i][t])
 
-            # calculate stability: stability no user
-            stable = True
-            for i in range(0, noOfUsers):
-                stableUser = True
-                stableTask = True
-                # check if user would find a better task that would prefer him
-                j = int(taskMeasurements[m][i][t])
-                if not (prefer_users[i][0] == j):
-                    if j == -1:
-                        betterTasks = np.array(prefer_users[i])
-                    else:
-                        matchIndex = np.where(np.array(prefer_users[i])==j)[0][0]
-                        betterTasks = prefer_users[i][0:matchIndex]
-                    # would task prefer user over its current user
-                    for jbetter in betterTasks:
-                        matchIndexTask = np.where(np.array(prefer_tasks[jbetter]) == i)[0][0]
-                        # get current user of task
-                        if jbetter in list(taskMeasurements[m][:,t]):
-                            iCurrent = list(taskMeasurements[m][:,t]).index(jbetter)
-                            iCurrentIndex = np.where(np.array(prefer_tasks[jbetter]) == iCurrent)[0][0]
-                            if iCurrentIndex > matchIndexTask:
+                # calculate stability: stability no user
+                stable = True
+                for i in range(0, noOfUsers):
+                    stableUser = True
+                    stableTask = True
+                    # check if user would find a better task that would prefer him
+                    j = int(taskMeasurements[m][i][t])
+                    if not (prefer_users[i][0] == j):
+                        if j == -1:
+                            betterTasks = np.array(prefer_users[i])
+                        else:
+                            matchIndex = np.where(np.array(prefer_users[i])==j)[0][0]
+                            betterTasks = prefer_users[i][0:matchIndex]
+                        # would task prefer user over its current user
+                        for jbetter in betterTasks:
+                            matchIndexTask = np.where(np.array(prefer_tasks[jbetter]) == i)[0][0]
+                            # get current user of task
+                            if jbetter in list(taskMeasurements[m][:,t]):
+                                iCurrent = list(taskMeasurements[m][:,t]).index(jbetter)
+                                iCurrentIndex = np.where(np.array(prefer_tasks[jbetter]) == iCurrent)[0][0]
+                                if iCurrentIndex > matchIndexTask:
+                                    stableUser = False
+                                    break
+                            else:
                                 stableUser = False
                                 break
-                        else:
-                            stableUser = False
-                            break
 
-                # check if task would find a better user that would prefer him
-                if j == -1:
-                    stableTask == False
-                elif stableUser == False and not(j==-1):
-                    # check if corresponding task would find a better suited user that also prefers him
-                    matchIndex = np.where(np.array(prefer_tasks[j]) == i)[0][0]
-                    betterUsers = prefer_tasks[j][0:matchIndex]
-                    # would user prefer task over its current task
-                    for ibetter in betterUsers:
-                        matchIndexUser = np.where(np.array(prefer_users[ibetter]) == j)[0][0]
-                        # get current task of user
-                        jCurrent = taskMeasurements[m][ibetter, t]
-                        if jCurrent == -1:
-                            stableTask = False
-                            break
-                        else:
-                            jCurrentIndex = np.where(np.array(prefer_users[ibetter]) == jCurrent)[0][0]
-                            if jCurrentIndex > matchIndexUser:
+                    # check if task would find a better user that would prefer him
+                    if j == -1:
+                        stableTask == False
+                    elif stableUser == False and not(j==-1):
+                        # check if corresponding task would find a better suited user that also prefers him
+                        matchIndex = np.where(np.array(prefer_tasks[j]) == i)[0][0]
+                        betterUsers = prefer_tasks[j][0:matchIndex]
+                        # would user prefer task over its current task
+                        for ibetter in betterUsers:
+                            matchIndexUser = np.where(np.array(prefer_users[ibetter]) == j)[0][0]
+                            # get current task of user
+                            jCurrent = taskMeasurements[m][ibetter, t]
+                            if jCurrent == -1:
                                 stableTask = False
                                 break
+                            else:
+                                jCurrentIndex = np.where(np.array(prefer_users[ibetter]) == jCurrent)[0][0]
+                                if jCurrentIndex > matchIndexUser:
+                                    stableTask = False
+                                    break
 
-                if stableUser==False and stableTask==False:
-                    stable = False
-                    break
-
-
-
-
-
-
-
-
-            stability[t] = stability[t]*m/(1+m) + 1/(m+1)*stable
+                    if stableUser==False and stableTask==False:
+                        stable = False
+                        break
 
 
 
 
-        taskPreference = taskPreference*m/(1+m) + taskPreferenceMeasurements[m]*1/(1+m)
-
-
-    # plot regret
-    fig, axs = plt.subplots(2, 4)
-    axs[0, 0].plot(np.arange(1, T+1), stableRegret.transpose())
-    pessimalOptimalGap = np.array((meanPessimalReward - meanOptimalReward))
-    for i in range(noOfUsers):
-        axs[0, 0].axhline(y=pessimalOptimalGap[i], color='r', linestyle='--')
-    axs[0, 0].set_title('average stable pessimal regret over time steps')
-    axs[0, 0].legend(["user " + str(i) for i in range(noOfUsers)])
-
-    # plot cum regret
-    axs[0, 3].plot(np.arange(1, T + 1), np.cumsum(np.array(stableRegret),1).transpose())
-    axs[0, 3].set_title('average cummulative stable pessimal regret over time steps')
-    axs[0, 3].legend(["user " + str(i) for i in range(noOfUsers)])
-    for i in range(noOfUsers):
-        axs[0, 3].plot([pessimalOptimalGap[i]*t for t in range(1,T+1)], color='r', linestyle='--')
-
-    # plot max regret
-    axs[1, 0].plot(np.arange(1, T + 1), np.max(stableRegret, 0))
-    axs[1, 0].axhline(y=np.max(pessimalOptimalGap,0), color='r', linestyle='--')
-    axs[1, 0].set_title('average maximum pessimal regret over time steps')
-
-    # plot estimated preferences over time
-    axs[1, 1].plot([i for i in range(0, T)], taskPreference.T)
-    axs[1, 1].set_title('mean estimated user-preference over time')
-
-    # plot choosen arms over time
-    axs[0, 2].plot([i for i in range(0, T)], choosenTasksMeasurements[0].T)
-    axs[0, 2].set_title('choosen arms over time (m=0) \n(legend: optimal ass. from users persp.)')
-    axs[0, 2].legend([i for i in tasks_of_users_optimal_stablematch])
-
-
-    # plot taken arms over time
-    axs[0, 1].plot([i for i in range(0, T)], taskMeasurements[0].T)
-    axs[0, 1].set_title('taken arms over time (m=0) \n(legend: optimal ass. from users persp.)')
-    axs[0, 1].legend([i for i in tasks_of_users_optimal_stablematch])
-
-    # plot stability over time
-    axs[1, 2].plot([i for i in range(1, T)], stability[1:])
-    axs[1, 2].set_title('P(stability(t)) over t (based on true values)')
-
-    # plot exploration var over time
-    axs[1, 3].plot([((1 / t * explore_var)*((1 / t * explore_var)<=1) + ((1 / t * explore_var)>1)*1) for t in range(1, T)])
-    axs[1, 3].set_title('exploration probability over time')
 
 
 
-    # theorem 6
-    #delta = 1
-    #epsilon = (1-lambda_var)*lambda_var**(noOfUsers-1)
-    #rightSide = noOfUsers**5*noOfTasks**2/(epsilon**(noOfUsers**4+1))*np.log(T)*(1/delta**2*np.log(T) + 3)
-    #rewardG = np.zeros(noOfUsers)
-    #for i in range(0, noOfUsers):
-    #    rewardG[i] = rightSide*24*np.max([np.max(meanPessimalReward[i] - task_duration[i][:]),meanPessimalReward[i]])
+
+                stability[t] = stability[t]*m/(1+m) + 1/(m+1)*stable
 
 
+
+
+            taskPreference = taskPreference*m/(1+m) + taskPreferenceMeasurements[m]*1/(1+m)
+
+
+        # plot regret
+        axs[0, 0].plot(np.arange(1, T+1), stableRegret.transpose())
+        pessimalOptimalGap = np.array((meanPessimalReward - meanOptimalReward))
+        for i in range(noOfUsers):
+            axs[0, 0].axhline(y=pessimalOptimalGap[i], color='r', linestyle='--')
+        axs[0, 0].set_title('average stable pessimal regret over time steps')
+        axs[0, 0].legend(["user " + str(i) for i in range(noOfUsers)])
+
+        # plot cum regret
+        axs[2, 0].plot(np.arange(1, T + 1), np.cumsum(np.array(stableRegret),1).transpose())
+        axs[2, 0].set_title('average cumulative pessimal regret over time steps')
+        axs[2, 0].legend(["user " + str(i) for i in range(noOfUsers)])
+        for i in range(noOfUsers):
+            axs[2, 0].plot([pessimalOptimalGap[i]*t for t in range(1,T+1)], color='r', linestyle='--')
+
+        # plot max regret
+        axs[1, 0].plot(np.arange(1, T + 1), np.max(stableRegret, 0))
+        axs[1, 0].axhline(y=np.max(pessimalOptimalGap,0), color='r', linestyle='--')
+        axs[1, 0].set_title('average maximum pessimal regret over time steps')
+
+        # plot max cum regret
+        axs[2, 1].plot(np.arange(1, T + 1), np.max(np.cumsum(np.array(stableRegret),1).transpose(), 1))
+        axs[2, 1].plot(np.max([pessimalOptimalGap*t for t in range(1,T+1)], 1), color='r', linestyle='--')
+        axs[2, 1].set_title('average maximum cumulative pessimal regret over time steps')
+
+        # plot estimated preferences over time
+        axs[1, 1].plot([i for i in range(0, T)], taskPreference.T)
+        axs[1, 1].set_title('mean estimated user-preference over time')
+
+        # plot choosen arms over time
+        axs[0, 2].plot([i for i in range(0, T)], choosenTasksMeasurements[0].T)
+        axs[0, 2].set_title('choosen arms over time (m=0) \n(legend: optimal ass. from users persp.)')
+        axs[0, 2].legend([i for i in tasks_of_users_optimal_stablematch])
+
+
+        # plot taken arms over time
+        axs[0, 1].plot([i for i in range(0, T)], taskMeasurements[0].T)
+        axs[0, 1].set_title('taken arms over time (m=0) \n(legend: optimal ass. from users persp.)')
+        axs[0, 1].legend([i for i in tasks_of_users_optimal_stablematch])
+
+        # plot stability over time
+        axs[1, 2].plot([i for i in range(1, T)], stability[1:])
+        axs[1, 2].set_title('P(stability(t)) over t (based on true values)')
+
+        # plot exploration var over time
+        axs[1, 3].plot([((1 / t * explore_var)*((1 / t * explore_var)<=1) + ((1 / t * explore_var)>1)*1) for t in range(1, T)])
+        axs[1, 3].set_title('exploration probability over time')
+
+
+
+        # theorem 6
+        #delta = 1
+        #epsilon = (1-lambda_var)*lambda_var**(noOfUsers-1)
+        #rightSide = noOfUsers**5*noOfTasks**2/(epsilon**(noOfUsers**4+1))*np.log(T)*(1/delta**2*np.log(T) + 3)
+        #rewardG = np.zeros(noOfUsers)
+        #for i in range(0, noOfUsers):
+        #    rewardG[i] = rightSide*24*np.max([np.max(meanPessimalReward[i] - task_duration[i][:]),meanPessimalReward[i]])
+
+    axs[1, 0].legend(["exp " + str(i) for i in range(noOfExperiments)])
+    axs[2, 1].legend(["exp " + str(i) for i in range(noOfExperiments)])
     plt.show()
 
 # Press the green button in the gutter to run the script.
