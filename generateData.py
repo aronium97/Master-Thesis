@@ -22,7 +22,7 @@ while tztz:
 
     #mu = np.array([[1,0],[0,1]])
 
-    task_duration = mu #+ np.random.random([np.size(mu,0), np.size(mu,1)])
+    task_duration = mu + 1 #+ np.random.random([np.size(mu,0), np.size(mu,1)])
 
     for i in range(0, noOfTasks):
         _, counts = np.unique(task_duration[:,i], return_counts=True)
