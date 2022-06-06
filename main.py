@@ -132,10 +132,11 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
 
                         # ------ test if task is plausible
                         maxAcceptedBid = task_duration[i][j] * (1 + maxAllowedMarge)  # MCSP accepts only this maximum price (see it as a user always bidding)
-                        taskIsPlausible = testBid <= maxAcceptedBid
-                        considerPreferenceMCSP = np.random.uniform(0,1) <= considerPreferenceMCSP_var
+                        considerPreferenceMCSP = np.random.uniform(0, 1) <= considerPreferenceMCSP_var
                         if considerPreferenceMCSP:
-                            taskIsPlausible = taskIsPlausible and (testBid <= lastBidOnTask[j] or performedTasks[j] == i)
+                            taskIsPlausible = (testBid <= maxAcceptedBid) and (testBid <= lastBidOnTask[j] or performedTasks[j] == i)
+                        else:
+                            taskIsPlausible = True
                         if taskIsPlausible:
                             plausibleTasks[j] = 1
                             testedBids[j] = testBid
@@ -174,7 +175,7 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
                 noOfTimesChoosen[i][choosenTasks[i]] += 1
                 maxAcceptedBid = task_duration[i][choosenTasks[i]] * (1 + maxAllowedMarge)
                 # check if bid is the lowest & is less than max allowed bid
-                if (np.min(usersCurrentBidOnTask[choosenTasks == choosenTasks[i]]) >= usersCurrentBidOnTask[i]) and usersCurrentBidOnTask[i] < maxAcceptedBid:
+                if (np.min(usersCurrentBidOnTask[choosenTasks == choosenTasks[i]]) >= usersCurrentBidOnTask[i]) and usersCurrentBidOnTask[i] <= maxAcceptedBid:
                     performedTasks[choosenTasks[i]] = i
                     lastBidOnTask[choosenTasks[i]] = usersCurrentBidOnTask[i]
                     tasksHaveUser[choosenTasks[i]] = True
@@ -188,11 +189,11 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
                 noOfTimesVisited[i][j] += 1
                 burst = 0#5*(i==1 and noOfTimesVisited[i][j]<20)#(np.random.uniform(0, 1) <= 0.4) * task_duration[i][j]
                 sampleTaskDuration = np.random.normal(loc=task_duration[i][j] + burst, scale=sampling_noise)
-                estimated_task_duration[i][j] = (estimated_task_duration[i][j] * (
-                            noOfTimesVisited[i][j] - 1) + sampleTaskDuration) / noOfTimesVisited[i][j]
-                reward = usersCurrentBidOnTask[i]*(sampleTaskDuration < deadline)
+                estimated_task_duration[i][j] = estimated_task_duration[i][j]*0.3 + sampleTaskDuration*0.7#
+                #estimated_task_duration[i][j] = (estimated_task_duration[i][j] * (noOfTimesVisited[i][j] - 1) + sampleTaskDuration) / noOfTimesVisited[i][j]
+                reward = usersCurrentBidOnTask[i]*(sampleTaskDuration <= deadline) - sampleTaskDuration
                 estimated_task_reward[i][j] = (estimated_task_reward[i][j] * (noOfTimesVisited[i][j] - 1) + reward) / noOfTimesVisited[i][j]
-                rewardMeasurements[i][t] = reward - sampleTaskDuration #todo: put this on reward!!! important
+                rewardMeasurements[i][t] = reward # todo: reward hier rein oder wo anders?
                 taskMeasurements[i][t] = j
 
 
@@ -206,28 +207,28 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
 def print_hi(name):
     customName = "random"
 
-    noOfTasks = 5
-    noOfUsers = 5
+    noOfTasks = 10
+    noOfUsers = 10
 
-    deadline = noOfTasks + 1
+    deadline = noOfTasks + 10
 
-    T = 10000
-    lambda_var = 0.1
+    T = 1000
+    lambda_var = 0.0
     marge = 0.1
-    maxAllowedMarge = 0.11
-    explore_var = 10 # 100: start decrasing from t=100
-    sampling_noise = 0.4
+    maxAllowedMarge = 1000.11
+    explore_var = 30 # 100: start decrasing from t=100
+    sampling_noise = 1
 
-    enableNoAccessCount_e = [True, True, True, True]
-    noAccessMode_e = [0, 0, 0, 0]
+    enableNoAccessCount_e = [False, False, True, True]
+    noAccessMode_e = [1,1 , 1, 1]
     countDegradeRate = 3 # for mode 0
     countStartTime = 100
     countEndTime_e = [5000, 5000]
     countInfluence_var = 1/1000 # for mode 0
-    countUntilAdjustment = 4 # for mode 1
+    countUntilAdjustment = 3 # for mode 1
     considerPreferenceMCSP_var_e = [1,0] # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
 
-    noOfMonteCarloIterations = 10
+    noOfMonteCarloIterations = 20
 
     noOfExperiments = 2
 
@@ -270,8 +271,8 @@ def print_hi(name):
 
         prefer_tasks = []
         prefer_users = []
-        task_duration_with_deadlines_userview = np.multiply(task_duration, (task_duration < deadline) * 1)
-        task_duration_with_deadlines_taskview = np.multiply(task_duration, (task_duration < deadline) * 1 + (task_duration >= deadline)*10000)
+        task_duration_with_deadlines_userview = np.multiply(task_duration, (task_duration <= deadline) * 1)
+        task_duration_with_deadlines_taskview = np.multiply(task_duration, (task_duration <= deadline) * 1 + (task_duration > deadline)*10000)
         # tasks preferences (tasks prefer shorter durations)
         for i in range(noOfTasks):
             prefer_tasks.append((np.argsort(task_duration_with_deadlines_taskview[:,i])).tolist())
@@ -298,6 +299,11 @@ def print_hi(name):
             meanPessimalReward[users_of_tasks_pessimal_stablematch[i]] = marge * task_duration[users_of_tasks_pessimal_stablematch[i]][i]
             pessimalAssignment[users_of_tasks_pessimal_stablematch[i]] = i
 
+        if np.sum(meanPessimalReward) == 0:
+            raise Exception("pessimal reward=0! pessimal match would be no task assignment. increase minimum task duration")
+
+        print("task_duration_with_deadlines_userview: " + str(task_duration_with_deadlines_userview))
+        print("task_duration_with_deadlines_taskview: " + str(task_duration_with_deadlines_taskview))
         print("mean optimal match reward: " + str(meanOptimalReward))
         print("mean pessimal match reward: " + str(meanPessimalReward))
         #print("stable matching unique?: " + str((optimalAssignment==pessimalAssignment).all())) # wrong?
