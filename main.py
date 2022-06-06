@@ -77,7 +77,7 @@ def test_on_preference(task_duration, estimated_task_duration, noOfTimesVisited,
     return np.mean(assigned_preference)
 
 
-def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, explore_var, maxAllowedMarge, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment, noAccessMode):
+def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, explore_var, maxAllowedMarge, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment, noAccessMode, countEndTime, considerPreferenceMCSP_var):
     # init
     noOfTimesChoosen = np.zeros([noOfUsers, noOfTasks]).astype(int)
     noOfTimesVisited = np.zeros([noOfUsers, noOfTasks]).astype(int)
@@ -108,15 +108,18 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
                     # do nothing
                 else:
                     # estimate cost
-                    # todo: durch estimation ersetzen
                     plausibleTasks = np.zeros(noOfTasks)
                     testedBids = -1*np.ones(noOfTasks)
                     for j in range(0, noOfTasks):
+                        # ----- caluclate bid
                         # zwei teile: einmal obendrüber problem, eimal maxAcceptedBid Problem!
                         noAccessCount = noAccessCounter[i][j]
-                        if noAccessMode == 0:
+                        if enableNoAccessCount==False:
+                            # off
+                            task_duration_user = estimated_task_duration[i][j]
+                        elif noAccessMode == 0:
                             # mode 0 (ucb)
-                            task_duration_user = estimated_task_duration[i][j] - (noAccessCount*countInfluence_var)*(t>=countStartTime)*enableNoAccessCount#np.random.normal(loc=estimated_task_duration[i][j], scale=0*100/(noOfTimesVisited[i][j]+1))#estimated_task_duration[i][j]#np.random.normal(loc=estimated_task_duration[i][j], scale=2)
+                            task_duration_user = estimated_task_duration[i][j] - (noAccessCount*countInfluence_var)*(t>=countStartTime)*(t<countEndTime)#np.random.normal(loc=estimated_task_duration[i][j], scale=0*100/(noOfTimesVisited[i][j]+1))#estimated_task_duration[i][j]#np.random.normal(loc=estimated_task_duration[i][j], scale=2)
                         else:
                             # mode 1 (bisection)
                             lastAcceptedEstimation = lastBidAccepted[i][j] / (1 + marge)
@@ -126,14 +129,14 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
                                 estimated_task_duration[i][j] = lastAcceptedEstimation + 0.5*(estimated_task_duration[i][j] - lastAcceptedEstimation)
                                 task_duration_user = estimated_task_duration[i][j]
                         testBid = task_duration_user * (marge + 1)
-                        maxAcceptedBid = task_duration[i][j]*(1+maxAllowedMarge)# MCSP accepts only this maximum price (see it as a user always bidding)
-                        #if testBid>maxAcceptedBid:
-                        #    print(testBid-maxAcceptedBid)
-                        #    print((noAccessCount/100000)*(t>100))
-                        #    print(i)
-                        #    print(t)
-                        #    print("---")
-                        if (testBid <= lastBidOnTask[j] or performedTasks[j] == i) and testBid<=maxAcceptedBid:
+
+                        # ------ test if task is plausible
+                        maxAcceptedBid = task_duration[i][j] * (1 + maxAllowedMarge)  # MCSP accepts only this maximum price (see it as a user always bidding)
+                        taskIsPlausible = testBid <= maxAcceptedBid
+                        considerPreferenceMCSP = np.random.uniform(0,1) <= considerPreferenceMCSP_var
+                        if considerPreferenceMCSP:
+                            taskIsPlausible = taskIsPlausible and (testBid <= lastBidOnTask[j] or performedTasks[j] == i)
+                        if taskIsPlausible:
                             plausibleTasks[j] = 1
                             testedBids[j] = testBid
                             noAccessCounter[i][j] = np.max([0, noAccessCounter[i][j] - countDegradeRate])
@@ -142,10 +145,10 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
                         else:
                             noAccessCounter[i][j] += 1
                             lastWasAccepted[i][j] = False
-                    # calculate UCB
+                    # ---- decide for task and pull
                     ucbBound = np.copy(estimated_task_reward[i])
                     ucbBound[plausibleTasks == 0] = np.nan
-                    # pull max ucb
+                    # epsilon greedy
                     if np.sum(plausibleTasks) > 0:
                         explore = (np.random.uniform(0, 1) <= 1/t*explore_var) * 1
                         if explore == 1:
@@ -160,18 +163,6 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
                         # no task can be choosen
                         choosenTasks[i] = -1
                         usersCurrentBidOnTask[i] = np.nan
-        # check for problems
-        problemDetected = False
-        for i in range(noOfUsers):
-            j = choosenTasks[i]
-            if not(j == -1):
-                usersWithTask = np.where(np.array(choosenTasks) == j)
-                if np.size(usersWithTask)>1:
-                    usersHaveHigherBid = usersCurrentBidOnTask[usersWithTask] > usersCurrentBidOnTask[i]
-                    usersHaveLowerRewardExpectation = task_duration[usersWithTask, j] < task_duration[i,j]
-                    if np.sum(usersHaveHigherBid & usersHaveLowerRewardExpectation) > 0:
-                        problemDetected = True
-                        break
 
         # decide for winners
         tasksHaveUser = np.array([False] * noOfTasks)
@@ -220,23 +211,25 @@ def print_hi(name):
 
     deadline = noOfTasks + 1
 
-    T = 500
+    T = 10000
     lambda_var = 0.1
     marge = 0.1
     maxAllowedMarge = 0.11
     explore_var = 10 # 100: start decrasing from t=100
     sampling_noise = 0.4
 
-    enableNoAccessCount_e = [False, True, True]
-    noAccessMode_e = [0, 0, 1]
+    enableNoAccessCount_e = [True, True, True, True]
+    noAccessMode_e = [0, 0, 0, 0]
     countDegradeRate = 3 # for mode 0
     countStartTime = 100
+    countEndTime_e = [5000, 5000]
     countInfluence_var = 1/1000 # for mode 0
     countUntilAdjustment = 4 # for mode 1
+    considerPreferenceMCSP_var_e = [1,0] # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
 
-    noOfMonteCarloIterations = 100
+    noOfMonteCarloIterations = 10
 
-    noOfExperiments = 3
+    noOfExperiments = 2
 
     pickelFileName = "data/" + str(noOfTasks) + str(noOfUsers) + str(customName)
     with open(pickelFileName + ".pkl", 'rb') as f:
@@ -249,6 +242,8 @@ def print_hi(name):
         # get from experiment parameters
         enableNoAccessCount = enableNoAccessCount_e[iExperiment]
         noAccessMode = noAccessMode_e[iExperiment]
+        countEndTime = countEndTime_e[iExperiment]
+        considerPreferenceMCSP_var = considerPreferenceMCSP_var_e[iExperiment]
 
         # check for order
         for i in range(0, noOfTasks):
@@ -263,7 +258,7 @@ def print_hi(name):
         taskMeasurements = {}
         for m in range(noOfMonteCarloIterations):
             print(m)
-            rewardMeasurements_i, taskPreferenceMeasurements_i, estimated_task_duration_i, choosenTasksMeasurements_i, taskMeasurements_i = ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, explore_var, maxAllowedMarge, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment, noAccessMode)
+            rewardMeasurements_i, taskPreferenceMeasurements_i, estimated_task_duration_i, choosenTasksMeasurements_i, taskMeasurements_i = ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, explore_var, maxAllowedMarge, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment, noAccessMode, countEndTime, considerPreferenceMCSP_var)
             rewardMeasurements[m] = rewardMeasurements_i
             taskPreferenceMeasurements[m] = taskPreferenceMeasurements_i
             estimated_task_duration[m] = estimated_task_duration_i
@@ -374,17 +369,7 @@ def print_hi(name):
                         stable = False
                         break
 
-
-
-
-
-
-
-
                 stability[t] = stability[t]*m/(1+m) + 1/(m+1)*stable
-
-
-
 
             taskPreference = taskPreference*m/(1+m) + taskPreferenceMeasurements[m]*1/(1+m)
 
@@ -406,12 +391,14 @@ def print_hi(name):
 
         # plot max regret
         axs[1, 0].plot(np.arange(1, T + 1), np.max(stableRegret, 0))
-        axs[1, 0].axhline(y=np.max(pessimalOptimalGap,0), color='r', linestyle='--')
+        if iExperiment==noOfExperiments-1:
+            axs[1, 0].axhline(y=np.max(pessimalOptimalGap,0), color='r', linestyle='--')
         axs[1, 0].set_title('average maximum pessimal regret over time steps')
 
         # plot max cum regret
         axs[2, 1].plot(np.arange(1, T + 1), np.max(np.cumsum(np.array(stableRegret),1).transpose(), 1))
-        axs[2, 1].plot(np.max([pessimalOptimalGap*t for t in range(1,T+1)], 1), color='r', linestyle='--')
+        if iExperiment==noOfExperiments-1:
+            axs[2, 1].plot(np.max([pessimalOptimalGap*t for t in range(1,T+1)], 1), color='r', linestyle='--')
         axs[2, 1].set_title('average maximum cumulative pessimal regret over time steps')
 
         # plot estimated preferences over time
