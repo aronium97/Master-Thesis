@@ -160,8 +160,6 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, marge, lambda_var, deadline, 
                     # epsilon greedy
                     explore = (np.random.uniform(0, 1) <= 1 / t * explore_var) * 1
                     doNotChooseTask = np.sum(plausibleTasks) == 0 or ((np.logical_or(ucbBound<0, plausibleTasks==0) ==True).all() and explore == 0)
-                    if i == 0 and doNotChooseTask==True:
-                        print("hjhj")
                     if doNotChooseTask:
                         # no task can be choosen
                         choosenTasks[i] = -1
