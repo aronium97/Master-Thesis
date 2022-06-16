@@ -6,71 +6,76 @@ import pickle
 import matplotlib.pyplot as plt
 import scipy
 from joblib import Parallel, delayed
-import ray
+#import ray
 from scipy.stats import norm
 
 
-def stableMatching(n, menPreferences, womenPreferences):
+def stableMatching(n, m, menPreferences, womenPreferences):
     # Initially, all n men are unmarried
     unmarriedMen = list(range(n))
     # None of the men has a spouse yet, we denote this by the value None
     manSpouse = [None] * n
     # None of the women has a spouse yet, we denote this by the value None
-    womanSpouse = [None] * n
+    womanSpouse = [None] * m
     # Each man made 0 proposals, which means that
     # his next proposal will be to the woman number 0 in his list
     nextManChoice = [0] * n
 
     # While there exists at least one unmarried man:
-    while unmarriedMen:
+    while unmarriedMen :
         # Pick an arbitrary unmarried man
         he = unmarriedMen[0]
-        # Store his ranking in this variable for convenience
-        hisPreferences = menPreferences[he]
-        # Find a woman to propose to
-        she = hisPreferences[nextManChoice[he]]
-        # Store her ranking in this variable for convenience
-        herPreferences = womenPreferences[she]
-        # Find the present husband of the selected woman (it might be None)
-        currentHusband = womanSpouse[she]
-
-        # Now "he" proposes to "she".
-        # Decide whether "she" accepts, and update the following fields
-        # 1. manSpouse
-        # 2. womanSpouse
-        # 3. unmarriedMen
-        # 4. nextManChoice
-        if currentHusband == None:
-            # No Husband case
-            # "She" accepts any proposal
-            womanSpouse[she] = he
-            manSpouse[he] = she
-            # "His" nextchoice is the next woman
-            # in the hisPreferences list
-            nextManChoice[he] = nextManChoice[he] + 1
-            # Delete "him" from the
-            # Unmarried list
+        if nextManChoice[he] == m:
+            # this man will not find a woman
+            manSpouse[he] = None
             unmarriedMen.pop(0)
         else:
-            # Husband exists
-            # Check the preferences of the
-            # current husband and that of the proposed man's
-            currentIndex = herPreferences.index(currentHusband)
-            hisIndex = herPreferences.index(he)
-            # Accept the proposal if
-            # "he" has higher preference in the herPreference list
-            if currentIndex > hisIndex:
-                # New stable match is found for "her"
+            # Store his ranking in this variable for convenience
+            hisPreferences = menPreferences[he]
+            # Find a woman to propose to
+            she = hisPreferences[nextManChoice[he]]
+            # Store her ranking in this variable for convenience
+            herPreferences = womenPreferences[she]
+            # Find the present husband of the selected woman (it might be None)
+            currentHusband = womanSpouse[she]
+
+            # Now "he" proposes to "she".
+            # Decide whether "she" accepts, and update the following fields
+            # 1. manSpouse
+            # 2. womanSpouse
+            # 3. unmarriedMen
+            # 4. nextManChoice
+            if currentHusband == None:
+                # No Husband case
+                # "She" accepts any proposal
                 womanSpouse[she] = he
                 manSpouse[he] = she
+                # "His" nextchoice is the next woman
+                # in the hisPreferences list
                 nextManChoice[he] = nextManChoice[he] + 1
-                # Pop the newly wed husband
+                # Delete "him" from the
+                # Unmarried list
                 unmarriedMen.pop(0)
-                # Now the previous husband is unmarried add
-                # him to the unmarried list
-                unmarriedMen.insert(0, currentHusband)
             else:
-                nextManChoice[he] = nextManChoice[he] + 1
+                # Husband exists
+                # Check the preferences of the
+                # current husband and that of the proposed man's
+                currentIndex = herPreferences.index(currentHusband)
+                hisIndex = herPreferences.index(he)
+                # Accept the proposal if
+                # "he" has higher preference in the herPreference list
+                if currentIndex > hisIndex:
+                    # New stable match is found for "her"
+                    womanSpouse[she] = he
+                    manSpouse[he] = she
+                    nextManChoice[he] = nextManChoice[he] + 1
+                    # Pop the newly wed husband
+                    unmarriedMen.pop(0)
+                    # Now the previous husband is unmarried add
+                    # him to the unmarried list
+                    unmarriedMen.insert(0, currentHusband)
+                else:
+                    nextManChoice[he] = nextManChoice[he] + 1
 
     return manSpouse
 
@@ -262,34 +267,35 @@ def print_hi(name):
     customName = "random"
 
     noOfTasks = 5
-    noOfUsers = 5
+    noOfUsers = 30
 
-    deadline = 4.5
+    deadline = 7.5
 
-    T = 2000
+    T = 5000
     lambda_var = 0.1
     forgettingDuration_var = 0.5
     marge = 0.1
     maxAllowedMarge = 0.11
     explore_var = 30 # 100: start decrasing from t=100
     sampling_noise = 0.1#0.01
-    activateBurst_e = [1,1,1,1,1,1,1]
+    activateBurst_e = [0,0,0,0,0,0,0]
 
-    takeNothingIfNegativeReward_e = [True, True, True, True] # todo: true after a delay, to prevent task=-1 assignment if bids were to low at beginning
-    enableNoAccessCount_e = [True, True, True, False]
-    rewardSensing_i = [2, 3, 0, 0, 0, 1, 2] # 0: original, 1: ignore, 2: pseudo reward
-    noAccessMode_e = [0, 0, 0, 0, 0, 0, 0]
+    takeNothingIfNegativeReward_e = [True, True, True, True, True] # todo: true after a delay, to prevent task=-1 assignment if bids were to low at beginning
+    enableNoAccessCount_e = [True, True, True, False, False]
+    rewardSensing_i = [2, 2, 2, 2, 2] # 0: original, 1: ignore, 2: pseudo reward
+    noAccessMode_e = [0, 0, 0, 0, 0]
     countDegradeRate = 2 # for mode 0
     countStartTime = 0
-    countEndTime_e = [1500, 1500, 1000, 1500, 1500, 1500, 1500]
+    countEndTime_e = [1000, 500, 100, 500, 5000]
     countInfluence_var = 1/1000 # for mode 0s
     countUntilAdjustment = 20 # for mode 1
-    considerPreferenceMCSP_var_e = [1, 1 , 1, 1] # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
-    epsilon_greedy_e = [True, True,True, True]
+    considerPreferenceMCSP_var_e = [1, 1 , 1, 1, 0] # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
+    epsilon_greedy_e = [True, True,True, True, True]
 
-    noOfMonteCarloIterations = 10
+    noOfMonteCarloIterations = 3
+    showMatrices = False
 
-    noOfExperiments = 4
+    noOfExperiments = 5
 
 
     pickelFileName = "data/" + str(noOfTasks) + str(noOfUsers) + str(customName)
@@ -321,7 +327,7 @@ def print_hi(name):
     # Plot results: ----------------------------------------------------
 
     fig, axs = plt.subplots(3, 4)
-    figMatrizes, axsMatrizes = plt.subplots(5, noOfExperiments)
+    if showMatrices: figMatrizes, axsMatrizes = plt.subplots(5, noOfExperiments + 1)
 
     for iExperiment in range(noOfExperiments):
 
@@ -356,20 +362,21 @@ def print_hi(name):
             prefer_users.append((np.flip(np.argsort(task_duration_with_deadlines_userview[i][:]))).tolist())
 
         # advantage: tasks
-        users_of_tasks_pessimal_stablematch = stableMatching(noOfUsers, prefer_tasks, prefer_users)
+        users_of_tasks_pessimal_stablematch = stableMatching(noOfTasks, noOfUsers, prefer_tasks, prefer_users)
         # advantage: users
-        tasks_of_users_optimal_stablematch = stableMatching(noOfUsers, prefer_users, prefer_tasks)
+        tasks_of_users_optimal_stablematch = stableMatching(noOfUsers, noOfTasks, prefer_users, prefer_tasks)
 
         # calculate stable optimal reward of users
         meanOptimalReward = np.zeros(noOfUsers)
-        optimalAssignment = np.zeros(noOfUsers)
+        optimalAssignment = -1*np.ones(noOfUsers)
         for i in range(noOfUsers):
-            meanOptimalReward[i] = marge*task_duration_real[i][tasks_of_users_optimal_stablematch[i]]
-            optimalAssignment[i] = tasks_of_users_optimal_stablematch[i]
+            if not(tasks_of_users_optimal_stablematch[i] == None):
+                meanOptimalReward[i] = marge*task_duration_real[i][tasks_of_users_optimal_stablematch[i]]
+                optimalAssignment[i] = tasks_of_users_optimal_stablematch[i]
 
         # calculate stable pessimal reward of users
         meanPessimalReward = np.zeros(noOfUsers)
-        pessimalAssignment = np.zeros(noOfUsers)
+        pessimalAssignment = -1*np.ones(noOfUsers)
         for i in range(noOfTasks):
             meanPessimalReward[users_of_tasks_pessimal_stablematch[i]] = marge * task_duration_real[users_of_tasks_pessimal_stablematch[i]][i]
             pessimalAssignment[users_of_tasks_pessimal_stablematch[i]] = i
@@ -476,12 +483,11 @@ def print_hi(name):
         axs[0, 0].legend(["user " + str(i) for i in range(noOfUsers)])
 
         # plot cum regret
-        #axs[2, 0].plot(np.arange(1, T + 1), np.cumsum(np.array(stableRegret),1).transpose())
-        axs[2, 0].plot(np.arange(1, T + 1), np.cumsum(np.array(stableRegret)[4,:]).transpose())
+        axs[2, 0].plot(np.arange(1, T + 1), np.cumsum(np.array(stableRegret),1).transpose())
         axs[2, 0].set_title('average cumulative pessimal regret over time steps')
-        #for i in range(noOfUsers):
-        #    axs[2, 0].plot([pessimalOptimalGap[i]*t for t in range(1,T+1)], color='r', linestyle='--')
-        #axs[2, 0].legend(["user " + str(i) for i in [4]])
+        for i in range(noOfUsers):
+            axs[2, 0].plot([pessimalOptimalGap[i]*t for t in range(1,T+1)], color='r', linestyle='--')
+        axs[2, 0].legend(["user " + str(i) for i in np.arange(noOfUsers)])
         for i in [4]:
             axs[2, 0].plot([pessimalOptimalGap[i] * t for t in range(1, T + 1)], color='r', linestyle='--')
 
@@ -527,36 +533,38 @@ def print_hi(name):
         print("noOfTimesVisited: " + str(noOfTimesVisited))
         print("noOfTimesChoosen: " + str(noOfTimesChoosen))
 
-        axsMatrizes[0,iExperiment].matshow(noOfTimesVisited, cmap=plt.cm.cool, aspect='auto')
-        axsMatrizes[0, iExperiment].set_title("no Of Times Visited")
-        for i in range(noOfUsers):
-            for j in range(noOfTasks):
-                c = noOfTimesVisited[j, i]
-                axsMatrizes[0,iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
-        axsMatrizes[1, iExperiment].matshow(estimated_task_reward, cmap=plt.cm.cool, aspect='auto')
-        axsMatrizes[1, iExperiment].set_title("estimated_task_reward")
-        for i in range(noOfUsers):
-            for j in range(noOfTasks):
-                c = estimated_task_reward[j, i]
-                axsMatrizes[1, iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
-        axsMatrizes[2, iExperiment].matshow(estimated_task_duration, cmap=plt.cm.cool,  aspect='auto')
-        axsMatrizes[2, iExperiment].set_title("estimated task duration")
-        for i in range(noOfUsers):
-            for j in range(noOfTasks):
-                c = estimated_task_duration[j, i]
-                axsMatrizes[2, iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
-        axsMatrizes[3, iExperiment].matshow(overDeadlineCounter, cmap=plt.cm.cool, aspect='auto')
-        axsMatrizes[3, iExperiment].set_title("over Deadline Counter")
-        for i in range(noOfUsers):
-            for j in range(noOfTasks):
-                c = overDeadlineCounter[j, i]
-                axsMatrizes[3, iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
-        axsMatrizes[4, iExperiment].matshow(noOfTimesChoosen, cmap=plt.cm.cool, aspect='auto')
-        axsMatrizes[4, iExperiment].set_title("no of times choosen")
-        for i in range(noOfUsers):
-            for j in range(noOfTasks):
-                c = noOfTimesChoosen[j, i]
-                axsMatrizes[4, iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
+        if showMatrices:
+
+            axsMatrizes[0,iExperiment].matshow(noOfTimesVisited, cmap=plt.cm.cool, aspect='auto')
+            axsMatrizes[0, iExperiment].set_title("no Of Times Visited")
+            for i in range(noOfUsers):
+                for j in range(noOfTasks):
+                    c = noOfTimesVisited[i, j]
+                    axsMatrizes[0,iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
+            axsMatrizes[1, iExperiment].matshow(estimated_task_reward, cmap=plt.cm.cool, aspect='auto')
+            axsMatrizes[1, iExperiment].set_title("estimated_task_reward")
+            for i in range(noOfUsers):
+                for j in range(noOfTasks):
+                    c = estimated_task_reward[i, j]
+                    axsMatrizes[1, iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
+            axsMatrizes[2, iExperiment].matshow(estimated_task_duration, cmap=plt.cm.cool,  aspect='auto')
+            axsMatrizes[2, iExperiment].set_title("estimated task duration")
+            for i in range(noOfUsers):
+                for j in range(noOfTasks):
+                    c = estimated_task_duration[i, j]
+                    axsMatrizes[2, iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
+            axsMatrizes[3, iExperiment].matshow(overDeadlineCounter, cmap=plt.cm.cool, aspect='auto')
+            axsMatrizes[3, iExperiment].set_title("over Deadline Counter")
+            for i in range(noOfUsers):
+                for j in range(noOfTasks):
+                    c = overDeadlineCounter[i, j]
+                    axsMatrizes[3, iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
+            axsMatrizes[4, iExperiment].matshow(noOfTimesChoosen, cmap=plt.cm.cool, aspect='auto')
+            axsMatrizes[4, iExperiment].set_title("no of times choosen")
+            for i in range(noOfUsers):
+                for j in range(noOfTasks):
+                    c = noOfTimesChoosen[i, j]
+                    axsMatrizes[4, iExperiment].text(i, j, str("{:.2e}".format(c)), va='center', ha='center')
 
 
         # theorem 6
