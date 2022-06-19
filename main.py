@@ -83,7 +83,7 @@ def stableMatching(n, m, menPreferences, womenPreferences):
 
 
 def test_on_preference(task_duration, estimated_task_duration, noOfTimesVisited, t):
-    assigned_preference = np.sum(task_duration >= np.choose(np.argmax(estimated_task_duration, 1), task_duration.T).reshape(-1, 1), 1)
+    assigned_preference = 0#np.sum(task_duration >= np.choose(np.argmax(estimated_task_duration, 1), task_duration.T).reshape(-1, 1), 1)
     return np.mean(assigned_preference)
 
 
@@ -266,17 +266,17 @@ def print_hi(name):
     use_ray = False
     customName = "random"
 
-    noOfTasks = 5
-    noOfUsers = 30
+    noOfTasks = 10
+    noOfUsers = 10
 
-    deadline = 7.5
+    deadline = 70.5
 
     T = 5000
     lambda_var = 0.1
     forgettingDuration_var = 0.5
     marge = 0.1
-    maxAllowedMarge = 0.11
-    explore_var = 30 # 100: start decrasing from t=100
+    maxAllowedMarge = 0.1
+    explore_var = 1 # 100: start decrasing from t=100
     sampling_noise = 0.1#0.01
     activateBurst_e = [0,0,0,0,0,0,0]
 
@@ -286,14 +286,15 @@ def print_hi(name):
     noAccessMode_e = [0, 0, 0, 0, 0]
     countDegradeRate = 2 # for mode 0
     countStartTime = 0
-    countEndTime_e = [1000, 500, 100, 500, 5000]
+    countEndTime_e = [100, 500, 1000, 500, 5000]
     countInfluence_var = 1/1000 # for mode 0s
     countUntilAdjustment = 20 # for mode 1
     considerPreferenceMCSP_var_e = [1, 1 , 1, 1, 0] # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
     epsilon_greedy_e = [True, True,True, True, True]
 
-    noOfMonteCarloIterations = 3
+    noOfMonteCarloIterations = 10
     showMatrices = False
+    checkForStability = False
 
     noOfExperiments = 5
 
@@ -412,55 +413,56 @@ def print_hi(name):
 
                 # calculate stability: stability no user
                 stable = True
-                for i in range(0, noOfUsers):
-                    stableUser = True
-                    stableTask = True
-                    # check if user would find a better task that would prefer him
-                    j = int(taskMeasurements[m][i][t])
-                    if not (prefer_users[i][0] == j):
-                        if j == -1:
-                            betterTasks = np.array(prefer_users[i])
-                        else:
-                            matchIndex = np.where(np.array(prefer_users[i])==j)[0][0]
-                            betterTasks = prefer_users[i][0:matchIndex]
-                        # would task prefer user over its current user
-                        for jbetter in betterTasks:
-                            matchIndexTask = np.where(np.array(prefer_tasks[jbetter]) == i)[0][0]
-                            # get current user of task
-                            if jbetter in list(taskMeasurements[m][:,t]):
-                                iCurrent = list(taskMeasurements[m][:,t]).index(jbetter)
-                                iCurrentIndex = np.where(np.array(prefer_tasks[jbetter]) == iCurrent)[0][0]
-                                if iCurrentIndex > matchIndexTask:
+                if checkForStability:
+                    for i in range(0, noOfUsers):
+                        stableUser = True
+                        stableTask = True
+                        # check if user would find a better task that would prefer him
+                        j = int(taskMeasurements[m][i][t])
+                        if not (prefer_users[i][0] == j):
+                            if j == -1:
+                                betterTasks = np.array(prefer_users[i])
+                            else:
+                                matchIndex = np.where(np.array(prefer_users[i])==j)[0][0]
+                                betterTasks = prefer_users[i][0:matchIndex]
+                            # would task prefer user over its current user
+                            for jbetter in betterTasks:
+                                matchIndexTask = np.where(np.array(prefer_tasks[jbetter]) == i)[0][0]
+                                # get current user of task
+                                if jbetter in list(taskMeasurements[m][:,t]):
+                                    iCurrent = list(taskMeasurements[m][:,t]).index(jbetter)
+                                    iCurrentIndex = np.where(np.array(prefer_tasks[jbetter]) == iCurrent)[0][0]
+                                    if iCurrentIndex > matchIndexTask:
+                                        stableUser = False
+                                        break
+                                else:
                                     stableUser = False
                                     break
-                            else:
-                                stableUser = False
-                                break
 
-                    # check if task would find a better user that would prefer him
-                    if j == -1:
-                        stableTask == False
-                    elif stableUser == False and not(j==-1):
-                        # check if corresponding task would find a better suited user that also prefers him
-                        matchIndex = np.where(np.array(prefer_tasks[j]) == i)[0][0]
-                        betterUsers = prefer_tasks[j][0:matchIndex]
-                        # would user prefer task over its current task
-                        for ibetter in betterUsers:
-                            matchIndexUser = np.where(np.array(prefer_users[ibetter]) == j)[0][0]
-                            # get current task of user
-                            jCurrent = taskMeasurements[m][ibetter, t]
-                            if jCurrent == -1:
-                                stableTask = False
-                                break
-                            else:
-                                jCurrentIndex = np.where(np.array(prefer_users[ibetter]) == jCurrent)[0][0]
-                                if jCurrentIndex > matchIndexUser:
+                        # check if task would find a better user that would prefer him
+                        if j == -1:
+                            stableTask == False
+                        elif stableUser == False and not(j==-1):
+                            # check if corresponding task would find a better suited user that also prefers him
+                            matchIndex = np.where(np.array(prefer_tasks[j]) == i)[0][0]
+                            betterUsers = prefer_tasks[j][0:matchIndex]
+                            # would user prefer task over its current task
+                            for ibetter in betterUsers:
+                                matchIndexUser = np.where(np.array(prefer_users[ibetter]) == j)[0][0]
+                                # get current task of user
+                                jCurrent = taskMeasurements[m][ibetter, t]
+                                if jCurrent == -1:
                                     stableTask = False
                                     break
+                                else:
+                                    jCurrentIndex = np.where(np.array(prefer_users[ibetter]) == jCurrent)[0][0]
+                                    if jCurrentIndex > matchIndexUser:
+                                        stableTask = False
+                                        break
 
-                    if stableUser==False and stableTask==False:
-                        stable = False
-                        break
+                        if stableUser==False and stableTask==False:
+                            stable = False
+                            break
 
                 stability[t] = stability[t]*m/(1+m) + 1/(m+1)*stable
 
@@ -488,7 +490,7 @@ def print_hi(name):
         for i in range(noOfUsers):
             axs[2, 0].plot([pessimalOptimalGap[i]*t for t in range(1,T+1)], color='r', linestyle='--')
         axs[2, 0].legend(["user " + str(i) for i in np.arange(noOfUsers)])
-        for i in [4]:
+        for i in range(noOfUsers):
             axs[2, 0].plot([pessimalOptimalGap[i] * t for t in range(1, T + 1)], color='r', linestyle='--')
 
         # plot max regret
@@ -508,20 +510,22 @@ def print_hi(name):
         axs[1, 1].plot([i for i in range(0, T)], taskPreference.T)
         axs[1, 1].set_title('mean estimated user-preference over time')
 
-        # plot choosen arms over time
-        axs[0, 2].plot([i for i in range(0, T)], choosenTasksMeasurements[0].T)
-        axs[0, 2].set_title('choosen arms over time (m=0) \n(legend: optimal ass. from users persp.)')
-        axs[0, 2].legend([i for i in tasks_of_users_optimal_stablematch])
+        if noOfUsers <=105:
+            # plot choosen arms over time
+            axs[0, 2].plot([i for i in range(0, T)], choosenTasksMeasurements[0].T)
+            axs[0, 2].set_title('choosen arms over time (m=0) \n(legend: optimal ass. from users persp.)')
+            axs[0, 2].legend([i for i in tasks_of_users_optimal_stablematch])
 
 
-        # plot taken arms over time
-        axs[0, 1].plot([i for i in range(0, T)], taskMeasurements[0].T)
-        axs[0, 1].set_title('taken arms over time (m=0) \n(legend: optimal ass. from users persp.)')
-        axs[0, 1].legend([i for i in tasks_of_users_optimal_stablematch])
+            # plot taken arms over time
+            axs[0, 1].plot([i for i in range(0, T)], taskMeasurements[0].T)
+            axs[0, 1].set_title('taken arms over time (m=0) \n(legend: optimal ass. from users persp.)')
+            axs[0, 1].legend([i for i in tasks_of_users_optimal_stablematch])
 
         # plot stability over time
-        axs[1, 2].plot([i for i in range(1, T)], stability[1:])
-        axs[1, 2].set_title('P(stability(t)) over t (based on true values)')
+        if checkForStability:
+            axs[1, 2].plot([i for i in range(1, T)], stability[1:])
+            axs[1, 2].set_title('P(stability(t)) over t (based on true values)')
 
         # plot exploration var over time
         axs[1, 3].plot([((1 / t * explore_var)*((1 / t * explore_var)<=1) + ((1 / t * explore_var)>1)*1) for t in range(1, T)])
