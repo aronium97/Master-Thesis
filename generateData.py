@@ -98,8 +98,8 @@ düsseldorf_geo = düsseldorf_df["geometry"]
 
 customName = "random"
 
-noOfTasks = 30
-noOfUsers = 30
+noOfTasks = 5
+noOfUsers = 5
 beta = 1 # -->oo : globaliy ranked arms
 x_i = np.random.uniform(noOfTasks)
 epsilon_i_k = np.random.logistic(0,1,size=[noOfUsers,noOfTasks])
@@ -122,15 +122,16 @@ for user in range(1,noOfUsers):
 #np.random.shuffle(mcsp_utility.flat)
 #mcsp_utility = mcsp_utility + np.round(np.random.random([noOfUsers, noOfTasks]),5)
 
-upload_speed = [20,30,50]
-processing_speed = [12,10,8]
-task_sizes = [1,5,3]
+upload_speed = [20,25,30]#[20,30,50,40.99,30.1,20.1,19.9]
+processing_speed = [50,60,55]#[12,10,2,8.1,8.9,9,9.1,12.1]
+task_sizes = [1,5,3]# [1,5,3,2,4]
+
 revenuePerMbit = 0.1 # revenue fopr mcsp: €/Mbit for mcsp
-costPerMbit = 0.01 # cost for users:   €/sec for users
+costPerSecond = 0.01 # cost for users:   €/sec for users
 
 # for tests:
 maxMarge = 0.1
-deadline = 0.8
+deadline = 0.5
 pMoreThan = 0.8
 
 # get distances
@@ -145,9 +146,9 @@ for i in range(noOfUsers):
 alpha_k = np.random.choice(task_sizes, noOfTasks)
 mcsp_utility_without_revenue = 1/(1+distances)*alpha_k
 beta_i = np.random.choice(processing_speed, noOfUsers)
-t_processing = (1/np.reshape(beta_i, [-1, 1])) * np.ones([noOfUsers, noOfTasks]) * alpha_k
+t_processing = (1/np.reshape(beta_i, [-1, 1])) * (np.ones([noOfUsers, noOfTasks]) + 1*np.random.random([noOfUsers, noOfTasks])) * alpha_k
 gamma_i = np.random.choice(upload_speed, noOfUsers)
-t_upload = (1/np.reshape(gamma_i, [-1, 1])) * np.ones([noOfUsers, noOfTasks]) * alpha_k
+t_upload = (1/np.reshape(gamma_i, [-1, 1])) * (np.ones([noOfUsers, noOfTasks]) + 1*np.random.random([noOfUsers, noOfTasks])) * alpha_k
 
 
 #task_duration = np.array([[0.6,0.1], [0.9,0.3]])#np.array([[3,2], [5,4]])# np.array([[0.6,0.5], [0.9,0.8]])
@@ -160,14 +161,14 @@ for i in range(0, noOfTasks):
         raise ValueError("no strict ordering of users"  + str(t_processing[:,i] + t_upload[:,i]) + str(mcsp_utility_without_revenue*revenuePerMbit))
 
 # test for max value
-if pMoreThan > np.mean(np.mean(mcsp_utility_without_revenue*revenuePerMbit > maxMarge*(t_processing + t_upload)*costPerMbit)):
-    raise ValueError("system not profitable" + str(maxMarge*(t_processing + t_upload)*costPerMbit) + str(mcsp_utility_without_revenue*revenuePerMbit))
+if pMoreThan > np.mean(np.mean(mcsp_utility_without_revenue*revenuePerMbit > maxMarge*(t_processing + t_upload)*costPerSecond)):
+    raise ValueError("system not profitable" + str(maxMarge*(t_processing + t_upload)*costPerSecond) + str(mcsp_utility_without_revenue*revenuePerMbit))
 if pMoreThan > np.mean(np.mean(deadline > (t_processing + t_upload))):
     raise ValueError("deadline too small" + str((t_processing + t_upload))  + " Deadline: " +str(deadline) + " pUnderDeadline: " + str(np.mean(np.mean(deadline > (t_processing + t_upload)))))
 
 print("task duration (processing+upload):")
 print(t_processing + t_upload)
-print("mcsp utility without prices:")
+print("mcsp utility without prices and revenue:")
 print(mcsp_utility_without_revenue)
 print("pUnderDeadline:")
 print(np.mean(np.mean(deadline > (t_processing + t_upload))))
