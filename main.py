@@ -108,6 +108,8 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
     overDeadlineCounter = np.zeros([noOfUsers, noOfTasks])
     lastBidAccepted = np.zeros([noOfUsers, noOfTasks])
     lastWasAccepted = np.zeros([noOfUsers,noOfTasks])
+    freeSensingTried = np.zeros([noOfUsers, noOfTasks])
+    freeSensingDone = np.zeros(T)
     # algorithm
     for t in range(1, T):
         for i in range(0, noOfUsers):
@@ -126,15 +128,16 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
                     testedBids = -1*np.ones(noOfTasks)
                     for j in range(0, noOfTasks):
                         # ----- caluclate bid
-                        # zwei teile: einmal obendrüber problem, eimal maxAcceptedBid Problem!
+                        freeSensingTried[i, j] = 0 # reset
                         if enableNoAccessCount==False:
                             # off
                             task_duration_user = estimated_task_duration[i][j]
                         else:
                             # check if user should explore
-                            userShouldExplore = noAccessCounter[i][j] > countUntilAdjustment
-                            if userShouldExplore:
+                            userShouldSenseFree= (np.random.uniform(0, 1) <= (noAccessCounter[i][j])/countUntilAdjustment)#*(countEndTime>t) #noAccessCounter[i][j] > countUntilAdjustment # (np.random.uniform(0, 1) <= (noAccessCounter[i][j])/countUntilAdjustment) # stochastic
+                            if userShouldSenseFree:
                                 task_duration_user = estimated_task_duration[i][j]*0.7
+                                freeSensingTried[i, j] = 1
                             else:
                                 task_duration_user = estimated_task_duration[i][j]
                         testBid = task_duration_user * (marge + 1) * costPerSecond
@@ -194,43 +197,50 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
         performedTasks[~tasksHaveUser] = -1
         # update no of visits
         for i in range(0, noOfUsers):
+            #if i == 4:
+            #    estimated_task_reward[i] = 1 + deadline
             if i in performedTasks:
                 j = np.where(performedTasks == i)[0][0]
+                if freeSensingTried[i,j]:
+                    freeSensingDone[t] += 1
+                    if t > 550:
+                        print("sc")
                 noOfTimesVisited[i][j] += 1
-                burst = 100*(i==4 and j == 2 and t<30)*(activateBurst == True)
+                forgettingDuration_var_i = forgettingDuration_var[1]**noOfTimesVisited[i][j]*forgettingDuration_var[0]
+                burst = 1.2*(i==4 and t<30)*(activateBurst == True)
                 sampleTaskDuration = np.max([np.random.normal(loc=task_duration[i][j] + burst, scale=sampling_noise),0])
-                estimated_task_duration[i][j] = sampleTaskDuration*forgettingDuration_var + estimated_task_duration[i][j]*(1-forgettingDuration_var)
+                estimated_task_duration[i][j] = sampleTaskDuration*forgettingDuration_var_i + estimated_task_duration[i][j]*(1-forgettingDuration_var_i)
                 if rewardSensing == 0:
                     # original
                     reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j],(1+maxAllowedMarge)*task_duration[i][j]])*(sampleTaskDuration <= deadline) - sampleTaskDuration
                     reward *= costPerSecond
-                    estimated_task_reward[i][j] = reward*forgettingDuration_var + estimated_task_reward[i][j]*(1-forgettingDuration_var)
+                    estimated_task_reward[i][j] = reward*forgettingDuration_var_i + estimated_task_reward[i][j]*(1-forgettingDuration_var_i)
                 elif rewardSensing == 1:
                     # ignore reward
                     if usersCurrentBidOnTask[i] > 0:
                         reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], (1 + maxAllowedMarge) * task_duration[i][j]]) * (sampleTaskDuration <= deadline) - sampleTaskDuration
                         reward *= costPerSecond
-                        estimated_task_reward[i][j] = reward * forgettingDuration_var + estimated_task_reward[i][j] * (1 - forgettingDuration_var)
+                        estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
                 elif rewardSensing == 2:
                     # pseudo reward with deadlines
                     if usersCurrentBidOnTask[i] > 0:
                         reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], (1 + maxAllowedMarge) * task_duration[i][j]]) * (sampleTaskDuration <= deadline) - sampleTaskDuration
                         reward *= costPerSecond
-                        estimated_task_reward[i][j] = reward * forgettingDuration_var + estimated_task_reward[i][j] * (1 - forgettingDuration_var)
+                        estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
                     else:
                         reward = (1 + marge) * sampleTaskDuration * (sampleTaskDuration <= deadline) - sampleTaskDuration# (1 + marge) * sampleTaskDuration # pseudo reward
                         reward *= costPerSecond
-                        estimated_task_reward[i][j] = reward * forgettingDuration_var + estimated_task_reward[i][j] * (1 - forgettingDuration_var)
+                        estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
                 elif rewardSensing == 3:
                     # pseudo reward
                     if usersCurrentBidOnTask[i] > 0:
                         reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], (1 + maxAllowedMarge) * task_duration[i][j]]) * (sampleTaskDuration <= deadline) - sampleTaskDuration
                         reward *= costPerSecond
-                        estimated_task_reward[i][j] = reward * forgettingDuration_var + estimated_task_reward[i][j] * (1 - forgettingDuration_var)
+                        estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
                     else:
                         reward = (1 + marge) * sampleTaskDuration # pseudo reward
                         reward *= costPerSecond
-                        estimated_task_reward[i][j] = reward * forgettingDuration_var + estimated_task_reward[i][j] * (1 - forgettingDuration_var)
+                        estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
                 rewardMeasurements[i][t] = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond*(1+maxAllowedMarge)*task_duration[i][j]])*(sampleTaskDuration <= deadline) - costPerSecond*sampleTaskDuration # reward # todo: reward hier rein oder wo anders?
                 globalRewardMeasurement[t] +=  mcsp_utility[i][j]*(sampleTaskDuration <= deadline) - sampleTaskDuration*costPerSecond
                 taskMeasurements[i][t] = j
@@ -240,7 +250,7 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
 
         taskPreferenceMeasurements[t] = test_on_preference(task_duration, estimated_task_duration, noOfTimesVisited, t)
 
-    return rewardMeasurements, taskPreferenceMeasurements, estimated_task_duration, choosenTasksMeasurements, taskMeasurements, estimated_task_reward, noOfTimesVisited, overDeadlineCounter, noOfTimesChoosen, globalRewardMeasurement
+    return rewardMeasurements, taskPreferenceMeasurements, estimated_task_duration, choosenTasksMeasurements, taskMeasurements, estimated_task_reward, noOfTimesVisited, overDeadlineCounter, noOfTimesChoosen, globalRewardMeasurement, freeSensingDone
 
 
 #@ray.remote
@@ -255,9 +265,10 @@ def doMonteCarrloIterations(noOfMonteCarloIterations, noOfUsers, noOfTasks, T, t
     overDeadlineCounter = {}
     noOfTimesChoosen = {}
     globalRewardMeasurement = {}
+    freeSensingDoneMeasurement = {}
     for m in range(noOfMonteCarloIterations):
         print(m)
-        rewardMeasurements_i, taskPreferenceMeasurements_i, estimated_task_duration_i, choosenTasksMeasurements_i, taskMeasurements_i, estimated_task_reward_i, noOfTimesVisited_i, overDeadlineCounter_i, noOfTimesChoosen_i, globalRewardMeasurement_i = ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_var, deadline, explore_var, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment, noAccessMode, countEndTime, considerPreferenceMCSP_var, maxAllowedMarge, activateBurst, forgettingDuration_var, epsilon_greedy, takeNothingIfNegativeReward, rewardSensing, costPerSecond)
+        rewardMeasurements_i, taskPreferenceMeasurements_i, estimated_task_duration_i, choosenTasksMeasurements_i, taskMeasurements_i, estimated_task_reward_i, noOfTimesVisited_i, overDeadlineCounter_i, noOfTimesChoosen_i, globalRewardMeasurement_i, freeSensingDoneMeasurement_i = ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_var, deadline, explore_var, sampling_noise, enableNoAccessCount, countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment, noAccessMode, countEndTime, considerPreferenceMCSP_var, maxAllowedMarge, activateBurst, forgettingDuration_var, epsilon_greedy, takeNothingIfNegativeReward, rewardSensing, costPerSecond)
         rewardMeasurements[m] = rewardMeasurements_i
         taskPreferenceMeasurements[m] = taskPreferenceMeasurements_i
         estimated_task_duration[m] = estimated_task_duration_i
@@ -268,7 +279,8 @@ def doMonteCarrloIterations(noOfMonteCarloIterations, noOfUsers, noOfTasks, T, t
         overDeadlineCounter[m] = overDeadlineCounter_i
         noOfTimesChoosen[m] = noOfTimesChoosen_i
         globalRewardMeasurement[m] = globalRewardMeasurement_i
-    return rewardMeasurements, taskPreferenceMeasurements, estimated_task_duration, choosenTasksMeasurements, taskMeasurements, estimated_task_reward, noOfTimesVisited, overDeadlineCounter, noOfTimesChoosen, globalRewardMeasurement
+        freeSensingDoneMeasurement[m] = freeSensingDoneMeasurement_i
+    return rewardMeasurements, taskPreferenceMeasurements, estimated_task_duration, choosenTasksMeasurements, taskMeasurements, estimated_task_reward, noOfTimesVisited, overDeadlineCounter, noOfTimesChoosen, globalRewardMeasurement, freeSensingDoneMeasurement
 
 
 
@@ -277,43 +289,44 @@ def doMonteCarrloIterations(noOfMonteCarloIterations, noOfUsers, noOfTasks, T, t
 def print_hi(name):
     use_ray = False
     customName = "random"
+    resultsFileName = "blabla"
 
-    noOfTasks = 5
-    noOfUsers = 5
+    noOfTasks = 10
+    noOfUsers = 20
 
-    deadline = 0.5
+    deadline = 0.8
 
     revenuePerMbit = 0.09  # revenue fopr mcsp: €/Mbit for mcsp
     costPerSecond = 0.06 # cost for users:   €/sec for users
 
-    T = 500
+    T = 1200
     lambda_var = 0.1
-    forgettingDuration_var = 0.8
+    forgettingDuration_var = (1,0.99) # start, decay with time
     marge = 0.1
     maxAllowedMarge = 0.1
     explore_var = 0.1 # 100: start decrasing from t=100
     sampling_noise = 0.01#0.01
-    activateBurst_e = [0, 0,0,0,0,0,0,0]
+    activateBurst_e = [0, 0, 0,0,0,0,0,0]
 
 
-    takeNothingIfNegativeReward_e = [True, True, True] # todo: true after a delay, to prevent task=-1 assignment if bids were to low at beginning
-    enableNoAccessCount_e = [True, False, False]
-    rewardSensing_i = [2, 2, 2] # 0: original, 1: ignore, 2: pseudo reward
-    noAccessMode_e = [0, 0, 0]
+    takeNothingIfNegativeReward_e = [True, True, True, True, True] # todo: true after a delay, to prevent task=-1 assignment if bids were to low at beginning
+    enableNoAccessCount_e = [True, True, True, True, False]
+    rewardSensing_i = [2, 2, 2, 2, 2] # 0: original, 1: ignore, 2: pseudo reward
+    noAccessMode_e = [0, 0, 0, 0, 0]
     countDegradeRate = 8
     countStartTime = 0
-    countEndTime_e = [500, 5000,5000] # used
-    countInfluence_var = 10  # used
-    countUntilAdjustment = 90 # used
-    considerPreferenceMCSP_var_e = [1 , 1, 0] # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
+    countEndTime_e = [300, 300,300, 300, 300] # used
+    countInfluence_var = 100  # used    hint: 100 for 10m20 1000 for 20m100 etc
+    countUntilAdjustment_e = [100, 15, 30, 60, 500] # used
+    considerPreferenceMCSP_var_e = [1 , 1, 1, 1, 1] # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
 
-    epsilon_greedy_e = [True, True, True]
+    epsilon_greedy_e = [True, True, True, True, True]
 
-    noOfMonteCarloIterations = 20
+    noOfMonteCarloIterations = 200
     showMatrices = False
-    checkForStability = True
+    checkForStability = False
 
-    noOfExperiments = 3
+    noOfExperiments = 5
 
     print("iterations: " + str(T) + " seconds: " + str(deadline*T))
 
@@ -337,14 +350,14 @@ def print_hi(name):
         ray.init(local_mode=False)
         results = ray.get([doMonteCarrloIterations.remote(noOfMonteCarloIterations, noOfUsers, noOfTasks, T, task_duration,mcsp_utility, marge, lambda_var,
                                 deadline, explore_var, sampling_noise, enableNoAccessCount_e[iExperiment],
-                                countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment,
+                                countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment_e[iExperiment],
                                 noAccessMode_e[iExperiment], countEndTime_e[iExperiment], considerPreferenceMCSP_var_e[iExperiment], maxAllowedMarge, activateBurst_e[iExperiment], forgettingDuration_var, epsilon_greedy_e[iExperiment], takeNothingIfNegativeReward_e[iExperiment], rewardSensing_e[iExperiment], costPerSecond) for iExperiment in range(noOfExperiments)])
         ray.shutdown()
 
     else:
         results = Parallel(n_jobs=noOfExperiments)(delayed(doMonteCarrloIterations)(noOfMonteCarloIterations, noOfUsers, noOfTasks, T, task_duration,mcsp_utility, marge, lambda_var,
                             deadline, explore_var, sampling_noise, enableNoAccessCount_e[iExperiment],
-                            countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment,
+                            countDegradeRate, countStartTime, countInfluence_var, countUntilAdjustment_e[iExperiment],
                            noAccessMode_e[iExperiment], countEndTime_e[iExperiment], considerPreferenceMCSP_var_e[iExperiment], maxAllowedMarge, activateBurst_e[iExperiment], forgettingDuration_var, epsilon_greedy_e[iExperiment], takeNothingIfNegativeReward_e[iExperiment], rewardSensing_i[iExperiment], costPerSecond) for iExperiment in range(noOfExperiments))
 
 
@@ -354,12 +367,15 @@ def print_hi(name):
     fig2, axs2 = plt.subplots(1, 4)
     if showMatrices: figMatrizes, axsMatrizes = plt.subplots(5, noOfExperiments + 1)
 
+    data = []
+    for idd in range(38):
+        data.append([])
     for iExperiment in range(noOfExperiments):
 
         print("//////////// experiment " + str(iExperiment))
 
         # get from ray results
-        rewardMeasurements, taskPreferenceMeasurements, estimated_task_durationMeasurements, choosenTasksMeasurements, taskMeasurements, estimated_task_rewardMeasurements, noOfTimesVisitedMeasurements, overDeadlineCounterMeasurements, noOfTimesChoosenMeasurements, globalRewardMeasurement = results[iExperiment]
+        rewardMeasurements, taskPreferenceMeasurements, estimated_task_durationMeasurements, choosenTasksMeasurements, taskMeasurements, estimated_task_rewardMeasurements, noOfTimesVisitedMeasurements, overDeadlineCounterMeasurements, noOfTimesChoosenMeasurements, globalRewardMeasurement, freeSensingDoneMeasurement = results[iExperiment]
 
         prefer_tasks = []
         prefer_users = []
@@ -442,6 +458,7 @@ def print_hi(name):
         overDeadlineCounter = np.zeros([noOfUsers, noOfTasks])
         noOfTimesChoosen = np.zeros([noOfUsers, noOfTasks])
         globalReward = np.zeros(T)
+        freeSensingDone = np.zeros(T)
         for m in range(noOfMonteCarloIterations):
             for t in range(0, T):
                 # calculate average pessimal regret
@@ -518,6 +535,7 @@ def print_hi(name):
             noOfTimesVisited = noOfTimesVisited*m/(1+m) + noOfTimesVisitedMeasurements[m]*1/(1+m)
             overDeadlineCounter = overDeadlineCounter * m / (1 + m) + overDeadlineCounterMeasurements[m] * 1 / (1 + m)
             noOfTimesChoosen = noOfTimesChoosen * m / (1 + m) + noOfTimesChoosenMeasurements[m] * 1 / (1 + m)
+            freeSensingDone = freeSensingDone*m/(1+m) + freeSensingDoneMeasurement[m] * 1/(1+m)
 
 
 
@@ -527,12 +545,12 @@ def print_hi(name):
         #for i in range(noOfUsers):
         #    axs[0, 0].axhline(y=pessimalOptimalGap[i], color='r', linestyle='--')
         axs[0, 0].set_title('average stable pessimal regret over time steps')
-        axs[0, 0].set_xlabel("seconds")
+        axs[0, 0].set_xlabel("seconds s ")
         axs[0, 0].legend(["user " + str(i) for i in range(noOfUsers)])
 
         # plot cum regret
         axs[2, 0].plot(np.arange(1, T + 1)*deadline, np.cumsum(np.array(stableRegret),1).transpose())
-        axs[2, 0].set_xlabel("seconds")
+        axs[2, 0].set_xlabel("seconds s")
         axs[2, 0].set_title('average cumulative pessimal regret over time steps')
         for i in range(noOfUsers):
             axs[2, 0].plot(np.arange(1, T + 1)*deadline, [pessimalOptimalGap[i]*t*deadline for t in range(1,(T+1))], color='r', linestyle='--')
@@ -550,7 +568,7 @@ def print_hi(name):
         axs2[0].plot(np.arange(1, T + 1)*deadline, np.max(np.cumsum(np.array(stableRegret),1).transpose(), 1))
         if iExperiment==noOfExperiments-1:
             axs2[0].plot(np.arange(1, T + 1)*deadline, np.max([pessimalOptimalGap*t*deadline for t in range(1,(T+1))], 1), color='r', linestyle='--')
-        axs2[0].set_xlabel("seconds")
+        axs2[0].set_xlabel("seconds s")
         axs2[0].set_title('average maximum cumulative pessimal regret over time steps')
 
         # plot estimated preferences over time
@@ -586,6 +604,12 @@ def print_hi(name):
         axs[1, 3].plot([i*deadline for i in range(1, T)], [((1 / t * explore_var)*((1 / t * explore_var)<=1) + ((1 / t * explore_var)>1)*1) for t in range(1, T)])
         axs[1, 3].set_xlabel("seconds")
         axs[1, 3].set_title('exploration probability over time')
+
+        # plot freesensingDone over time
+        axs[2, 3].plot([i * deadline for i in range(0, T)], np.cumsum(freeSensingDone))
+        axs[2, 3].set_xlabel("seconds")
+        axs[2, 3].set_title('cumulative no. of free sensing bids')
+
 
         # plot global reward over time
         axs2[2].plot([i*deadline for i in range(0, T)], globalReward)
@@ -643,6 +667,67 @@ def print_hi(name):
         #for i in range(0, noOfUsers):
         #    rewardG[i] = rightSide*24*np.max([np.max(meanPessimalReward[i] - task_duration[i][:]),meanPessimalReward[i]])
 
+        # save variables
+        data[0].append( meanPessimalReward)
+        data[1].append( task_duration_with_deadlines_userview)
+        data[2].append( task_duration_with_deadlines_taskview)
+        data[3].append( mcsp_expected_utility)
+        data[4].append( meanOptimalReward)
+        data[5].append( meanOptimalGlobalReward)
+        data[6].append( meanPessimalGlobalReward)
+        data[7].append( optimalAssignment)
+        data[8].append( pessimalAssignment)
+        data[9].append( task_duration)
+        data[10].append( stability)
+        data[11].append( noOfUnstableMatches)
+        data[12].append( taskPreference)
+        data[13].append( globalReward)
+        data[14].append( estimated_task_duration)
+        data[15].append( estimated_task_reward)
+        data[16].append( noOfTimesVisited)
+        data[17].append( overDeadlineCounter)
+        data[18].append( noOfTimesChoosen)
+        data[19].append( freeSensingDone)
+        data[20].append( T)
+        data[21].append( deadline)
+        data[22].append( stableRegret)
+        data[23].append( noOfUsers)
+        data[24].append( choosenTasksMeasurements)
+        data[25].append( taskMeasurements)
+        data[26].append( tasks_of_users_optimal_stablematch)
+        data[27].append( noOfTasks)
+        data[28].append( explore_var)
+        data[29].append( noOfExperiments)
+        data[30].append( globRew)
+        data[31].append(prefer_users)
+        data[32].append(prefer_tasks)
+        #siminfo:
+        data[33].append(noOfTasks)
+        data[34].append(noOfUsers)
+        data[35].append(deadline)
+        data[36].append(revenuePerMbit)
+        data[37].append(costPerSecond)
+        data[38].append(T)
+        data[39].append(lambda_var)
+        data[40].append(forgettingDuration_var)
+        data[41].append(marge)
+        data[42].append(maxAllowedMarge)
+        data[43].append(explore_var)
+        data[44].append(sampling_noise)
+        data[45].append(activateBurst_e[iExperiment])
+        data[46].append(takeNothingIfNegativeReward_e[iExperiment])
+        data[47].append(enableNoAccessCount_e[iExperiment])
+        data[48].append(rewardSensing_i[iExperiment])
+        data[49].append(noAccessMode_e[iExperiment])
+        data[50].append(countDegradeRate[iExperiment])
+        data[51].append(countStartTime[iExperiment])
+        data[52].append(countEndTime_e[iExperiment])
+        data[53].append(countInfluence_var[iExperiment])
+        data[54].append(countUntilAdjustment_e[iExperiment])
+        data[55].append(considerPreferenceMCSP_var_e[iExperiment])
+        data[56].append(epsilon_greedy_e[iExperiment])
+        data[57].append(noOfMonteCarloIterations)
+
     axs[1, 0].legend(["exp " + str(i) for i in range(noOfExperiments)])
     axs[2, 1].legend(["exp " + str(i) for i in range(noOfExperiments)])
     axs[2, 0].legend(["exp " + str(i) for i in range(noOfExperiments)])
@@ -651,6 +736,9 @@ def print_hi(name):
     axs2[0].legend(["exp " + str(i) for i in range(noOfExperiments)])
     plt.tight_layout()
     plt.show()
+
+    with open("autoresults/" + resultsFileName + ".pkl", 'wb') as f:  # Python 3: open(..., 'wb')
+        pickle.dump(data, f)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
