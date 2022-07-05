@@ -154,7 +154,7 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
                             #lastBidAccepted[i][j] = np.max([lastBidAccepted[i][j], testBid])
                             lastWasAccepted[i][j] = True
                         else:
-                            noAccessCounter[i][j] += (countEndTime>t)*t/(countInfluence_var)#1*(countEndTime-t)/t
+                            noAccessCounter[i][j] += not(np.random.uniform(0, 1) <= t/(countEndTime))*t/(countInfluence_var) # determmnistic: (countEndTime>t)*t/(countInfluence_var)#1*(countEndTime-t)/t
                             lastWasAccepted[i][j] = False
                     # ---- decide for task and pull
                     ucbBound = np.copy(estimated_task_reward[i])
@@ -289,10 +289,10 @@ def doMonteCarrloIterations(noOfMonteCarloIterations, noOfUsers, noOfTasks, T, t
 def print_hi(name):
     use_ray = False
     customName = "random"
-    resultsFileName = "blabla"
+    resultsFileName = "blabla1"
 
-    noOfTasks = 10
-    noOfUsers = 20
+    noOfTasks = 70
+    noOfUsers = 100
 
     deadline = 0.8
 
@@ -304,7 +304,7 @@ def print_hi(name):
     forgettingDuration_var = (1,0.99) # start, decay with time
     marge = 0.1
     maxAllowedMarge = 0.1
-    explore_var = 0.1 # 100: start decrasing from t=100
+    explore_var = 0.7 # 100: start decrasing from t=100
     sampling_noise = 0.01#0.01
     activateBurst_e = [0, 0, 0,0,0,0,0,0]
 
@@ -315,7 +315,7 @@ def print_hi(name):
     noAccessMode_e = [0, 0, 0, 0, 0]
     countDegradeRate = 8
     countStartTime = 0
-    countEndTime_e = [300, 300,300, 300, 300] # used
+    countEndTime_e = [400, 400,400, 400, 400] # used
     countInfluence_var = 100  # used    hint: 100 for 10m20 1000 for 20m100 etc
     countUntilAdjustment_e = [100, 15, 30, 60, 500] # used
     considerPreferenceMCSP_var_e = [1 , 1, 1, 1, 1] # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
@@ -368,7 +368,7 @@ def print_hi(name):
     if showMatrices: figMatrizes, axsMatrizes = plt.subplots(5, noOfExperiments + 1)
 
     data = []
-    for idd in range(38):
+    for idd in range(58):
         data.append([])
     for iExperiment in range(noOfExperiments):
 
@@ -719,10 +719,10 @@ def print_hi(name):
         data[47].append(enableNoAccessCount_e[iExperiment])
         data[48].append(rewardSensing_i[iExperiment])
         data[49].append(noAccessMode_e[iExperiment])
-        data[50].append(countDegradeRate[iExperiment])
-        data[51].append(countStartTime[iExperiment])
+        data[50].append(countDegradeRate)
+        data[51].append(countStartTime)
         data[52].append(countEndTime_e[iExperiment])
-        data[53].append(countInfluence_var[iExperiment])
+        data[53].append(countInfluence_var)
         data[54].append(countUntilAdjustment_e[iExperiment])
         data[55].append(considerPreferenceMCSP_var_e[iExperiment])
         data[56].append(epsilon_greedy_e[iExperiment])
