@@ -14,7 +14,7 @@ def print_hi(name):
 
     noOfExperiments = 5
 
-    flname = "blabla"
+    flname = "blabla11"#"legit 10m20 soft braker"
     pickelFileName = "autoresults/" + flname
     with open(pickelFileName + ".pkl", 'rb') as f:
         data = pickle.load(f)
@@ -28,9 +28,9 @@ def print_hi(name):
     for iExperiment in range(noOfExperiments):
 
         meanPessimalReward = data[0][iExperiment]
-        task_duration_with_deadlines_userview = data[1][iExperiment]
-        task_duration_with_deadlines_taskview = data[2][iExperiment]
-        mcsp_expected_utility = data[3][iExperiment]
+        user_reward_expectation = data[1][iExperiment]
+        mcsp_reward_expectation = data[2][iExperiment]
+        _ = data[3][iExperiment]
         meanOptimalReward = data[4][iExperiment]
         meanOptimalGlobalReward = data[5][iExperiment]
         meanPessimalGlobalReward = data[6][iExperiment]
@@ -68,17 +68,15 @@ def print_hi(name):
         if np.sum(meanPessimalReward) == 0:
             raise Exception("pessimal reward=0! pessimal match would be no task assignment. increase minimum task duration")
 
-        print("task_cost_with_deadlines_userview: " + str(task_duration_with_deadlines_userview))
-        print("task_cost_with_deadlines_taskview: " + str(task_duration_with_deadlines_taskview))
-        print("mcsp expected utility: " + str(mcsp_expected_utility))
+        print("task_duration: " + str(task_duration))
+        print("user_reward_expectation: " + str(user_reward_expectation))
+        print("mcsp_reward_expectation: " + str(mcsp_reward_expectation))
         print("mean optimal match reward: " + str(meanOptimalReward))
         print("mean pessimal match reward: " + str(meanPessimalReward))
         print("mean optimal match global reward: " + str(meanOptimalGlobalReward))
         print("mean pessimal match global reward: " + str(meanPessimalGlobalReward))
         print("optimal match: " + str(optimalAssignment))
         print("pessimal match: " + str(pessimalAssignment))
-        print("task duration:")
-        print(task_duration)
         # ----------------------------------------------------
 
         # plot regret
