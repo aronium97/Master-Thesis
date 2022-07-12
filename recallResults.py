@@ -4,17 +4,94 @@ import copy
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
+from tqdm import tqdm
+from joblib import Parallel, delayed
 
 
+def checkTheStability(data, iExperiment):
+    meanPessimalReward = data[0][iExperiment]
+    user_reward_expectation = data[1][iExperiment]
+    mcsp_reward_expectation = data[2][iExperiment]
+    _ = data[3][iExperiment]
+    meanOptimalReward = data[4][iExperiment]
+    meanOptimalGlobalReward = data[5][iExperiment]
+    meanPessimalGlobalReward = data[6][iExperiment]
+    optimalAssignment = data[7][iExperiment]
+    pessimalAssignment = data[8][iExperiment]
+    task_duration = data[9][iExperiment]
+    stability = data[10][iExperiment]
+    noOfUnstableMatches = data[11][iExperiment]
+    taskPreference = data[12][iExperiment]
+    globalReward = data[13][iExperiment]
+    estimated_task_duration = data[14][iExperiment]
+    estimated_task_reward = data[15][iExperiment]
+    noOfTimesVisited = data[16][iExperiment]
+    overDeadlineCounter = data[17][iExperiment]
+    noOfTimesChoosen = data[18][iExperiment]
+    freeSensingDone = data[19][iExperiment]
+    T = data[20][iExperiment]
+    deadline = data[21][iExperiment]
+    stableRegret = data[22][iExperiment]
+    noOfUsers = data[23][iExperiment]
+    choosenTasksMeasurements = data[24][iExperiment]
+    taskMeasurements = data[25][iExperiment]
+    tasks_of_users_optimal_stablematch = data[26][iExperiment]
+    noOfTasks = data[27][iExperiment]
+    explore_var = data[28][iExperiment]
+    noOfExperiments = data[29][iExperiment]
+    globRew = data[30][iExperiment]
+    prefer_users = data[31][iExperiment]
+    prefer_tasks = data[32][iExperiment]
+
+    noOfMonteCarloIterations = len(taskMeasurements)
+    stability = np.zeros(T)
+    noOfUnstableMatches = np.zeros(T)
+    for m in tqdm(range(noOfMonteCarloIterations)):
+        for t in range(0, T):
+            # calculate stability: stability no user
+            stable = True
+            unstableMatchesCount = 0
+            if True:
+                for i in range(0, noOfUsers):
+                    stableUser = True
+                    # check if user would find a better task that would prefer him
+                    j = int(taskMeasurements[m][i][t])
+                    if not (prefer_users[i][0] == j):
+                        if j == -1:
+                            betterTasks = np.array(prefer_users[i])
+                        else:
+                            matchIndex = np.where(np.array(prefer_users[i]) == j)[0][0]
+                            betterTasks = prefer_users[i][0:matchIndex]
+                        # would task prefer user over its current user
+                        for jbetter in betterTasks:
+                            matchIndexTask = np.where(np.array(prefer_tasks[jbetter]) == i)[0][0]
+                            # get current user of task
+                            if jbetter in list(taskMeasurements[m][:, t]):
+                                iCurrent = list(taskMeasurements[m][:, t]).index(jbetter)
+                                iCurrentIndex = np.where(np.array(prefer_tasks[jbetter]) == iCurrent)[0][0]
+                                if iCurrentIndex > matchIndexTask:
+                                    stableUser = False
+                                    break
+                            else:
+                                stableUser = False
+                                break
+
+                    if stableUser == False:
+                        stable = False
+                        unstableMatchesCount += 1
+
+            stability[t] = stability[t] * m / (1 + m) + 1 / (m + 1) * stable
+            noOfUnstableMatches[t] = noOfUnstableMatches[t] * m / (1 + m) + 1 / (m + 1) * unstableMatchesCount
+    return stability, noOfUnstableMatches
 
 def print_hi(name):
 
     showMatrices = False
-    checkForStability = False
+    checkForStability = True
 
-    noOfExperiments = 5
+    noOfExperiments = 7
 
-    flname = "blabla11"#"legit 10m20 soft braker"
+    flname = "10m30 top alles"#"legit 10m20 soft braker"
     pickelFileName = "autoresults/" + flname
     with open(pickelFileName + ".pkl", 'rb') as f:
         data = pickle.load(f)
@@ -24,6 +101,11 @@ def print_hi(name):
     fig, axs = plt.subplots(3, 4)
     fig2, axs2 = plt.subplots(1, 4)
     if showMatrices: figMatrizes, axsMatrizes = plt.subplots(5, noOfExperiments + 1)
+
+    if checkForStability:
+        results = Parallel(n_jobs=noOfExperiments)(
+            delayed(checkTheStability)(data, iExperiment) for iExperiment in
+            range(noOfExperiments))
 
     for iExperiment in range(noOfExperiments):
 
@@ -58,11 +140,13 @@ def print_hi(name):
         explore_var = data[28][iExperiment]
         noOfExperiments = data[29][iExperiment]
         globRew = data[30][iExperiment]
-        preferUsers = data[31][iExperiment]
-        preferTasks = data[32][iExperiment]
+        prefer_users = data[31][iExperiment]
+        prefer_tasks = data[32][iExperiment]
+
+        if checkForStability:
+            stability, noOfUnstableMatches = results[iExperiment]
 
         print("//////////// experiment " + str(iExperiment))
-
 
 
         if np.sum(meanPessimalReward) == 0:
