@@ -7,6 +7,44 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
+#plt.style.reload_library()
+#plt.style.use(['science', 'grid'])
+#plt.rc('font', family='lmodern', serif='Times')
+##plt.rc('text', usetex=True)
+#plt.rc('xtick', labelsize=6)
+#plt.rc('ytick', labelsize=6)
+#plt.rc('axes', labelsize=6)
+#plt.rc('legend',fontsize=6)
+
+# bernd style:
+plt.rc('font', family='lmodern', serif='Times')
+plt.rc('text', usetex=True)
+plt.rc('xtick', labelsize=8)
+plt.rc('ytick', labelsize=8)
+plt.rc('axes', labelsize=8)
+plt.rc('legend', fontsize=8)
+#Size calculation
+# width as measured in inkscape
+widthFig = 3.487
+heightFig = widthFig / 1.7
+#Data for plotting
+xAxisName='X axis'
+yAxisName='Y axis'
+label0 = []
+label0.append('Random')
+label0.append('Greedy')
+label0.append('CA-MAB')
+label0.append('CA-MAB-FS')
+#Color palette and markers
+mycolors = ['#0F7173', '#D8A47F', '#41EAD4', 'red']
+mymarkers = ['x', 'v', 'x', 'o']
+#Markers on the x axis
+xticks = (0,200,400,600,800,1000,1200)
+xlimits = (0,1200)
+yticks = (1,1.5,2,2.5)
+ylimits = (1,2.5)
+
+
 
 def checkTheStability(data, iExperiment):
     meanPessimalReward = data[0][iExperiment]
@@ -87,11 +125,13 @@ def checkTheStability(data, iExperiment):
 def print_hi(name):
 
     showMatrices = False
-    checkForStability = True
+    checkForStability = False
 
     noOfExperiments = 7
 
-    flname = "10m30 top alles"#"legit 10m20 soft braker"
+    showLatex = False
+
+    flname = "10m15aa"#"legit 10m20 soft braker"
     pickelFileName = "autoresults/" + flname
     with open(pickelFileName + ".pkl", 'rb') as f:
         data = pickle.load(f)
@@ -100,14 +140,42 @@ def print_hi(name):
 
     fig, axs = plt.subplots(3, 4)
     fig2, axs2 = plt.subplots(1, 4)
+
+    if showLatex:
+        figh, axsh = plt.subplots(1, 4)
+        # width as measured in inkscape
+        #width = 3.487*2.3
+        #height = width / 1.618 / 2.5
+        fig, ax = plt.subplots()
+        fig.subplots_adjust(left=.19, bottom=.19, right=.99, top=.97)
+
+        # bernd:
+        fig5, ax5 = plt.subplots()
+        fig5.subplots_adjust(left=0.117, bottom=0.176, right=.99, top=.97)
+        fig6, ax6 = plt.subplots()
+        fig6.subplots_adjust(left=0.117, bottom=0.176, right=.99, top=.97)
+        fig7, ax7 = plt.subplots()
+        fig7.subplots_adjust(left=0.117, bottom=0.176, right=.99, top=.97)
+        fig8, ax8 = plt.subplots()
+        fig8.subplots_adjust(left=0.117, bottom=0.176, right=.99, top=.97)
+
+
+
+
     if showMatrices: figMatrizes, axsMatrizes = plt.subplots(5, noOfExperiments + 1)
 
     if checkForStability:
         results = Parallel(n_jobs=noOfExperiments)(
             delayed(checkTheStability)(data, iExperiment) for iExperiment in
             range(noOfExperiments))
-
-    for iExperiment in range(noOfExperiments):
+    if showLatex:
+        expList = list([3,12,13,14])#list([6,5,4,2])
+    else:
+        expList = range(noOfExperiments)#list([3,12,13,14])#
+        #expList = list([5, 12, 13, 14])
+    maxCumSumRegretEnd = []
+    maxCumSumRegretEnd_MCSP = []
+    for iExperiment in expList:#range(noOfExperiments):#expList:#range(noOfExperiments):
 
         meanPessimalReward = data[0][iExperiment]
         user_reward_expectation = data[1][iExperiment]
@@ -142,6 +210,8 @@ def print_hi(name):
         globRew = data[30][iExperiment]
         prefer_users = data[31][iExperiment]
         prefer_tasks = data[32][iExperiment]
+        meanOptimalReward_MCSP = data[58][iExperiment]
+        rewardMeasurements_MCSP = data[59][iExperiment]
 
         if checkForStability:
             stability, noOfUnstableMatches = results[iExperiment]
@@ -157,11 +227,14 @@ def print_hi(name):
         print("mcsp_reward_expectation: " + str(mcsp_reward_expectation))
         print("mean optimal match reward: " + str(meanOptimalReward))
         print("mean pessimal match reward: " + str(meanPessimalReward))
+        print("mean optimal (MCSP) match reward: " + str(meanOptimalReward_MCSP))
         print("mean optimal match global reward: " + str(meanOptimalGlobalReward))
         print("mean pessimal match global reward: " + str(meanPessimalGlobalReward))
         print("optimal match: " + str(optimalAssignment))
         print("pessimal match: " + str(pessimalAssignment))
         # ----------------------------------------------------
+
+        subsampled_idx = np.arange(0, T, 60)
 
         # plot regret
         axs[0, 0].plot(np.arange(1, T+1)*deadline, stableRegret.transpose())
@@ -171,6 +244,19 @@ def print_hi(name):
         axs[0, 0].set_title('average stable pessimal regret over time steps')
         axs[0, 0].set_xlabel("seconds s ")
         axs[0, 0].legend(["user " + str(i) for i in range(noOfUsers)])
+
+        # plot mcsp reward
+        #axs[2, 2].plot(np.arange(1, T + 1) * deadline,
+        #               np.cumsum(np.sum(meanOptimalReward_MCSP - rewardMeasurements_MCSP.transpose(), 1)))
+        axs[2, 2].plot(np.arange(1, T + 1) * deadline,
+                       np.max(np.cumsum(np.array(meanOptimalReward_MCSP - rewardMeasurements_MCSP.transpose()),
+                                        1).transpose(), 0))
+        axs[2, 2].set_title('average stable mcsp regret over time steps')
+        axs[2, 2].set_xlabel("seconds s ")
+        maxCumSumRegretEnd_MCSP.append(np.max(np.cumsum(np.array(meanOptimalReward_MCSP - rewardMeasurements_MCSP.transpose()),
+                                        1).transpose(), 0)[-1])
+
+
 
         # plot cum regret
         axs[2, 0].plot(np.arange(1, T + 1)*deadline, np.cumsum(np.array(stableRegret),1).transpose())
@@ -194,6 +280,29 @@ def print_hi(name):
             axs2[0].plot(np.arange(1, T + 1)*deadline, np.max([pessimalOptimalGap*t*deadline for t in range(1,(T+1))], 1), color='r', linestyle='--')
         axs2[0].set_xlabel("seconds s")
         axs2[0].set_title('average maximum cumulative pessimal regret over time steps')
+        maxCumSumRegretEnd.append(np.max(np.cumsum(np.array(stableRegret),1).transpose(), 1)[-1])
+
+        # h: plot max cum regret
+        if showLatex:
+            axsh[0].plot(subsampled_idx * deadline, np.max(np.cumsum(np.array(stableRegret), 1).transpose()[subsampled_idx], 1), marker=mymarkers[expList.index(iExperiment)], markersize=5, color=mycolors[expList.index(iExperiment)])
+            if iExperiment == 2:
+                axsh[0].plot(subsampled_idx * deadline,
+                             np.max([pessimalOptimalGap * t * deadline for t in subsampled_idx], 1), color='r',
+                             linestyle='--')
+            axsh[0].set_xlabel("time [s]")
+            axsh[0].set_ylabel(r"$R_k$ [monetary units]")
+
+            # h2: plot max cum regret
+            ax5.plot(subsampled_idx * deadline,
+                         np.max(np.cumsum(np.array(stableRegret), 1).transpose()[subsampled_idx], 1),
+                         marker=mymarkers[expList.index(iExperiment)], markersize=5,
+                         color=mycolors[expList.index(iExperiment)])
+            if iExperiment == 2:
+                ax5.plot(subsampled_idx * deadline,
+                             np.max([pessimalOptimalGap * t * deadline for t in subsampled_idx], 1), color='r',
+                             linestyle='--')
+            ax5.set_xlabel("time [s]")
+            ax5.set_ylabel(r"$R_k$ [monetary units]")
 
         # plot estimated preferences over time
         axs[1, 1].plot([i*deadline for i in range(0, T)], taskPreference.T)
@@ -220,6 +329,20 @@ def print_hi(name):
             axs2[1].set_title('P(stability(t)) over t (based on true values)')
             axs2[1].set_xlabel("seconds")
 
+            if showLatex:
+                #h:
+                axsh[2].plot([i * deadline for i in range(1, T)], stability[1:], marker=mymarkers[expList.index(iExperiment)], markersize=5, color=mycolors[expList.index(iExperiment)])
+                axsh[2].set_title('probability of stability')
+                axsh[2].set_xlabel("time [s]")
+
+                #h2:
+                ax8.plot([i * deadline for i in range(1, T)], stability[1:],
+                             marker=mymarkers[expList.index(iExperiment)], markersize=5,
+                             color=mycolors[expList.index(iExperiment)])
+                ax8.set_title('probability of stability')
+                ax8.set_xlabel("time [s]")
+
+
             axs2[3].plot([i * deadline for i in range(1, T)], noOfUnstableMatches[1:])
             axs2[3].set_title('no. of unstable matches over t (based on true values)')
             axs2[3].set_xlabel("seconds")
@@ -234,6 +357,21 @@ def print_hi(name):
         axs[2, 3].set_xlabel("seconds")
         axs[2, 3].set_title('cumulative no. of free sensing bids')
 
+        if showLatex:
+            # h: plot freesensingDone over time
+            if iExperiment == 2:
+                axsh[3].plot([i * deadline for i in subsampled_idx], np.cumsum(freeSensingDone)[subsampled_idx], marker=mymarkers[expList.index(iExperiment)], markersize=5, color=mycolors[expList.index(iExperiment)])
+                axsh[3].set_xlabel("time [s]")
+                axsh[3].set_ylabel("cumulated number of free-sensing bids")
+
+            # h2: plot freesensingDone over time
+            if iExperiment == 2:
+                ax6.plot([i * deadline for i in subsampled_idx], np.cumsum(freeSensingDone)[subsampled_idx],
+                             marker=mymarkers[expList.index(iExperiment)], markersize=5,
+                             color=mycolors[expList.index(iExperiment)])
+                ax6.set_xlabel("time [s]")
+                ax6.set_ylabel("cumulated number of free-sensing bids")
+
 
         # plot global reward over time
         axs2[2].plot([i*deadline for i in range(0, T)], globalReward)
@@ -241,6 +379,26 @@ def print_hi(name):
         axs2[2].set_xlabel("seconds")
         if iExperiment == noOfExperiments - 1:
             axs2[2].axhline(y=np.max(globRew, 0), color='r', linestyle='--')
+
+        if showLatex:
+            # h: plot global reward over time
+            axsh[1].plot([i * deadline for i in subsampled_idx], globalReward[subsampled_idx], marker=mymarkers[expList.index(iExperiment)], markersize=5, color=mycolors[expList.index(iExperiment)])
+            axsh[1].set_ylabel(r'$U_t^{SW}$ [monetary units]')
+            axsh[1].set_xlabel("time [s]")
+            if iExperiment == 2:
+                axsh[1].axhline(y=np.max(globRew, 0), color='r', linestyle='--')
+            axsh[1].set_ylim([1.4, globRew + 0.1])
+
+            # h2: plot global reward over time
+            ax7.plot([i * deadline for i in subsampled_idx], globalReward[subsampled_idx],
+                         marker=mymarkers[expList.index(iExperiment)], markersize=5,
+                         color=mycolors[expList.index(iExperiment)])
+            ax7.set_ylabel(r'$U_t^{SW}$ [monetary units]')
+            ax7.set_xlabel("time [s]")
+            if iExperiment == 2:
+                ax7.axhline(y=np.max(globRew, 0), color='r', linestyle='--')
+            ax7.set_ylim([1.4, globRew + 0.1])
+
 
         #print("measured rewards: " + str(rewardMeasurements))
         print("estimated durations: " + str(estimated_task_duration))
@@ -290,12 +448,53 @@ def print_hi(name):
         #for i in range(0, noOfUsers):
         #    rewardG[i] = rightSide*24*np.max([np.max(meanPessimalReward[i] - task_duration[i][:]),meanPessimalReward[i]])
 
+    print("no of monte carlo iterations:" + str(len(data[25][0])))
+
     axs[1, 0].legend(["exp " + str(i) for i in range(noOfExperiments)])
     axs[2, 1].legend(["exp " + str(i) for i in range(noOfExperiments)])
     axs[2, 0].legend(["exp " + str(i) for i in range(noOfExperiments)])
     axs2[2].legend(["exp " + str(i) for i in range(noOfExperiments)])
     axs2[1].legend(["exp " + str(i) for i in range(noOfExperiments)])
     axs2[0].legend(["exp " + str(i) for i in range(noOfExperiments)])
+
+    if showLatex:
+
+        axsh[0].legend(["random", "greedy", "ucb-ua", "ucb-ua-fs", "galey-shapley"])
+        axsh[1].legend(["random", "greedy", "ucb-ua", "ucb-ua-fs", "optimum"], loc='lower left')
+        axsh[2].legend(["random", "greedy", "ucb-ua", "ucb-ua-fs"])
+        axsh[3].legend(["ucb-ua-fs"])
+
+        # --------------------  Bernd:
+        #------------------------------
+        #ax5.xticks(xticks)
+        #plt5.xlim(xlimits)
+        #plt5.yticks(yticks)
+        #plt5.ylim(ylimits)
+        #plt5.grid(linestyle='--')
+        ax5.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.45))
+        ax6.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.45))
+        ax7.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.45))
+        ax8.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.45))
+        fig5.set_size_inches(widthFig, heightFig)
+        fig6.set_size_inches(widthFig, heightFig)
+        fig7.set_size_inches(widthFig, heightFig)
+        fig8.set_size_inches(widthFig, heightFig)
+        ax5.grid(linestyle='--')
+        ax6.grid(linestyle='--')
+        ax7.grid(linestyle='--')
+        ax8.grid(linestyle='--')
+
+    # end bernd----------------------
+    #--------------------------------
+
+
+        #figh.set_size_inches(width, height)
+        figh.subplots_adjust(wspace=0.479, bottom=0.176)
+        figh.savefig('plot.pdf')
+
+    for i in range(len(maxCumSumRegretEnd_MCSP)):
+        print("EXP" + str(i) + ": " +  "-- regret MUs: " + str(maxCumSumRegretEnd[i]) + " -- regret mcsp: " + str(maxCumSumRegretEnd_MCSP[i]))
+
     plt.tight_layout()
     plt.show()
 
