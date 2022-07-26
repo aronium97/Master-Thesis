@@ -15,7 +15,7 @@ import numpy as np
 import haversine as hs
 from haversine import Unit
 from shapely.geometry import Polygon
-
+import tqdm
 
 def vis_random_location_process(num_pt, geo_df):
     """
@@ -81,7 +81,7 @@ def vis_random_location_process(num_pt, geo_df):
     #ax2.figure.savefig("step2.png", dpi=150)
     #ax3.figure.savefig("step3.png", dpi=150)
     ax4.figure.savefig("map.png", dpi=150)
-    plt.show()
+    #plt.show()
 
     return list(zip(x_2, y_2))
 
@@ -100,17 +100,7 @@ customName = "random"
 
 noOfTasks = 10
 noOfUsers = 15
-beta = 1 # -->oo : globaliy ranked arms
-x_i = np.random.uniform(noOfTasks)
-epsilon_i_k = np.random.logistic(0,1,size=[noOfUsers,noOfTasks])
-mus = beta*x_i + epsilon_i_k
-mu = np.zeros([noOfUsers, noOfTasks])
-mu[0] = np.arange(0,noOfTasks)
-#for user in range(0, noOfUsers):
-#    for task in range(0, noOfTasks):
-#        mu[user][task] = np.sum(mus[user][:] <= mus[user][task])
-for user in range(1,noOfUsers):
-    mu[user] = np.roll(mu[user-1],1)
+
 
 #mu = np.ones([noOfUsers, noOfTasks])#np.array([[1,0],[0,1]])
 
@@ -127,7 +117,7 @@ processing_speed = [50,60,55]#[12,10,2,8.1,8.9,9,9.1,12.1]
 task_sizes = [1,3,7]# [1,5,3,2,4]
 
 revenuePerMbit = 0.1 # revenue fopr mcsp: €/Mbit for mcsp
-costPerSecond = 0.01 # cost for users:   €/sec for users
+costPerSecond = 0.4
 
 # for tests:
 maxMarge = 0.1
@@ -139,16 +129,17 @@ locationTupples = vis_random_location_process(noOfUsers+noOfTasks, düsseldorf_d
 # first locations are the tasks
 locationOfTasks = locationTupples[:noOfTasks]
 locationOfUsers = locationTupples[noOfTasks:]
-distances = np.zeros([noOfUsers,noOfTasks])
-for i in range(noOfUsers):
-    for j in range(noOfTasks):
-        distances[i,j] = hs.haversine(locationOfUsers[i], locationOfTasks[j], unit=Unit.KILOMETERS)
+distances = np.ones([noOfUsers,noOfTasks]) #+ 0.5*np.random.random([noOfUsers, noOfTasks])
+#for i in range(noOfUsers):
+#    for j in range(noOfTasks):
+#        distances[i,j] = hs.haversine(locationOfUsers[i], locationOfTasks[j], unit=Unit.KILOMETERS)
 alpha_k = np.random.choice(task_sizes, noOfTasks)
 mcsp_utility_without_revenue = 1/(1+distances)*alpha_k
 beta_i = np.random.choice(processing_speed, noOfUsers)
-t_processing = (1/np.reshape(beta_i, [-1, 1])) * (np.ones([noOfUsers, noOfTasks]) + 1*np.random.random([noOfUsers, noOfTasks])) * alpha_k
-gamma_i = np.random.choice(upload_speed, noOfUsers)
-t_upload = (1/np.reshape(gamma_i, [-1, 1])) * (np.ones([noOfUsers, noOfTasks]) + 1*np.random.random([noOfUsers, noOfTasks])) * alpha_k
+t_processing = (1/np.reshape(beta_i, [-1, 1])) * (np.ones([noOfUsers, noOfTasks]) + 0.001*np.random.random([noOfTasks])) * alpha_k
+gamma_i = np.random.uniform(low=30, high=90, size=noOfUsers)#np.random.choice(upload_speed, noOfUsers)#np.random.uniform(low=30, high=40, size=noOfUsers)#np.random.uniform(low=10, high=40, size=noOfUsers)#np.random.choice(upload_speed, noOfUsers)
+t_upload = (1/np.reshape(gamma_i, [-1, 1])) * (np.ones([noOfUsers, noOfTasks]) + 0.001*np.random.random([noOfUsers, noOfTasks])) * alpha_k
+#t_upload *= np.random.random([noOfTasks])
 
 #np.random.shuffle(mcsp_utility_without_revenue)
 
@@ -162,20 +153,25 @@ for i in range(0, noOfTasks):
         raise ValueError("no strict ordering of users"  + str(t_processing[:,i] + t_upload[:,i]) + str(mcsp_utility_without_revenue*revenuePerMbit))
 
 # test for max value
-if pMoreThan > np.mean(np.mean(mcsp_utility_without_revenue*revenuePerMbit > maxMarge*(t_processing + t_upload)*costPerSecond)):
+if pMoreThan > np.mean(np.mean(mcsp_utility_without_revenue*revenuePerMbit > (1+maxMarge)*(t_processing + t_upload)*costPerSecond)):
     raise ValueError("system not profitable" + str(maxMarge*(t_processing + t_upload)*costPerSecond) + str(mcsp_utility_without_revenue*revenuePerMbit))
 if pMoreThan > np.mean(np.mean(deadline > (t_processing + t_upload))):
     raise ValueError("deadline too small" + str((t_processing + t_upload))  + " Deadline: " +str(deadline) + " pUnderDeadline: " + str(np.mean(np.mean(deadline > (t_processing + t_upload)))))
 
 print("task duration (processing+upload):")
 print(t_processing + t_upload)
-print("mcsp utility without prices and revenue:")
-print(mcsp_utility_without_revenue)
+print("task cost :")
+print((1+maxMarge)*(t_processing + t_upload)*costPerSecond)
+print("mcsp utility with prices:")
+print(mcsp_utility_without_revenue*revenuePerMbit)
 print("pUnderDeadline:")
 print(np.mean(np.mean(deadline > (t_processing + t_upload))))
+print("pProfitable:")
+print(np.mean(np.mean(mcsp_utility_without_revenue*revenuePerMbit > (1+maxMarge)*(t_processing + t_upload)*costPerSecond)))
 #task_duration = np.arange(noOfUsers) + 6*np.diag(np.ones([noOfUsers]))# + np.random.rand(noOfUsers,noOfTasks)#np.random.rand(noOfUsers,noOfTasks) + #10*np.random.rand(noOfUsers,noOfTasks)##np.random.rand(noOfUsers,noOfTasks)#100*np.diag(np.ones([noOfUsers]))#
 #task_duration -= np.diag(np.arange(noOfUsers))
 #estimated_task_duration = np.zeros([noOfUsers,noOfTasks])# + np.random.rand(noOfUsers,noOfTasks)
+
 
 pickelFileName = "data/" + str(noOfTasks) + str(noOfUsers) + str(customName)
 data = [t_processing, t_upload, mcsp_utility_without_revenue]
