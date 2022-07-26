@@ -24,16 +24,16 @@ def calculateExpectationValues(costPerSecond, marge, deadline, sampling_noise, t
             for iSample in range(noOfSamples):
                 sample = np.random.normal(loc=task_duration[i][j], scale=sampling_noise)
                 if sample>deadline:
-                    user_reward_sum[i][j] += -sample * costPerSecond
+                    user_reward_sum[i][j] += -sample * costPerSecond[i]
                     # if mcsp_Learning = off:
-                    #   mcsp_reward_sum = mcsp_utility[i][j] - np.min([mcsp_utility[i][j], sample*costPerSecond])
-                elif sample*(1+marge)*costPerSecond >= mcsp_utility[i][j]:
-                    user_reward_sum[i][j] +=  mcsp_utility[i][j] - sample*costPerSecond
+                    #   mcsp_reward_sum = mcsp_utility[i][j] - np.min([mcsp_utility[i][j], sample*costPerSecond[i]])
+                elif sample*(1+marge)*costPerSecond[i] >= mcsp_utility[i][j]:
+                    user_reward_sum[i][j] +=  mcsp_utility[i][j] - sample*costPerSecond[i]
                 elif sample < 0:
                     mcsp_reward_sum[i][j] += mcsp_utility[i][j]
                 else:
-                    user_reward_sum[i][j] += sample*marge*costPerSecond
-                    mcsp_reward_sum[i][j] += mcsp_utility[i][j] - sample*(1+marge)*costPerSecond
+                    user_reward_sum[i][j] += sample*marge*costPerSecond[i]
+                    mcsp_reward_sum[i][j] += mcsp_utility[i][j] - sample*(1+marge)*costPerSecond[i]
 
     user_reward_expectation = np.divide(user_reward_sum, noOfSamples)
     mcsp_reward_expectation = np.divide(mcsp_reward_sum, noOfSamples)
@@ -174,7 +174,7 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
                                 freeSensingTried[i, j] = 1
                             else:
                                 task_duration_user = estimated_task_duration[i][j]
-                        testBid = task_duration_user * (marge + 1) * costPerSecond #+ sameTasksInARow[i]/100
+                        testBid = task_duration_user * (marge + 1) * costPerSecond[i] #+ sameTasksInARow[i]/100
 
                         # ------ test if task is plausible
                         taskIsPlausible = True
@@ -195,7 +195,7 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
                     ucbBound[plausibleTasks == 0] = np.nan
                     # epsilon greedy
                     if epsilon_greedy == True:
-                        explore = (np.random.uniform(0, 1) <= 1 / t * explore_var) * 1
+                        explore = (np.random.uniform(0, 1) <= 1/(t)) * 1
                     else:
                         # dont consider best arm
                         explore = 1
@@ -249,38 +249,38 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
                 estimated_task_duration[i][j] = sampleTaskDuration*forgettingDuration_var_i + estimated_task_duration[i][j]*(1-forgettingDuration_var_i)
                 if rewardSensing == 0:
                     # original
-                    reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond * (1 + maxAllowedMarge) * sampleTaskDuration]) * (sampleTaskDuration <= deadline) - costPerSecond * sampleTaskDuration
+                    reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond[i] * (1 + maxAllowedMarge) * sampleTaskDuration]) * (sampleTaskDuration <= deadline) - costPerSecond[i] * sampleTaskDuration
                     estimated_task_reward[i][j] = reward*forgettingDuration_var_i + estimated_task_reward[i][j]*(1-forgettingDuration_var_i)
                 elif rewardSensing == 1:
                     # ignore reward
                     if not(freeSensingTried[i, j]):
-                        reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond * (1 + maxAllowedMarge) * sampleTaskDuration]) * (sampleTaskDuration <= deadline) - costPerSecond * sampleTaskDuration
+                        reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond[i] * (1 + maxAllowedMarge) * sampleTaskDuration]) * (sampleTaskDuration <= deadline) - costPerSecond[i] * sampleTaskDuration
                         estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
                 elif rewardSensing == 2:
                     # pseudo reward with deadlines
-                    if False:#not(freeSensingTried[i, j]):
-                        reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond * (1 + maxAllowedMarge) * sampleTaskDuration]) * (sampleTaskDuration <= deadline) - costPerSecond * sampleTaskDuration
+                    if False:#not(freeSensingTried[i, j]):#
+                        reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond[i] * (1 + maxAllowedMarge) * sampleTaskDuration]) * (sampleTaskDuration <= deadline) - costPerSecond[i] * sampleTaskDuration
                         estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
                     else:
                         reward = (1 + marge) * sampleTaskDuration * (sampleTaskDuration <= deadline) - sampleTaskDuration# (1 + marge) * sampleTaskDuration # pseudo reward
-                        reward *= costPerSecond
+                        reward *= costPerSecond[i]
                         estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
                 elif rewardSensing == 3:
                     # pseudo reward
                     if not(freeSensingTried[i, j]):
-                        reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond * (1 + maxAllowedMarge) * sampleTaskDuration]) * (sampleTaskDuration <= deadline) - costPerSecond * sampleTaskDuration
+                        reward = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond[i] * (1 + maxAllowedMarge) * sampleTaskDuration]) * (sampleTaskDuration <= deadline) - costPerSecond[i] * sampleTaskDuration
                         estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
                     else:
                         reward = (1 + marge) * sampleTaskDuration # pseudo reward
-                        reward *= costPerSecond
+                        reward *= costPerSecond[i]
                         estimated_task_reward[i][j] = reward * forgettingDuration_var_i + estimated_task_reward[i][j] * (1 - forgettingDuration_var_i)
-                rewardMeasurements[i][t] = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond*(1+maxAllowedMarge)*sampleTaskDuration])*(sampleTaskDuration <= deadline) - costPerSecond*sampleTaskDuration # reward # todo: reward hier rein oder wo anders?
-                globalRewardMeasurement[t] +=  mcsp_utility[i][j]*(sampleTaskDuration <= deadline) - sampleTaskDuration*costPerSecond
+                rewardMeasurements[i][t] = np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j], costPerSecond[i]*(1+maxAllowedMarge)*sampleTaskDuration])*(sampleTaskDuration <= deadline) - costPerSecond[i]*sampleTaskDuration # reward # todo: reward hier rein oder wo anders?
+                globalRewardMeasurement[t] +=  mcsp_utility[i][j]*(sampleTaskDuration <= deadline) - sampleTaskDuration*costPerSecond[i]
                 taskMeasurements[i][t] = j
                 noAccessCounter[i][j] = 0
                 overDeadlineCounter[i][j] = overDeadlineCounter[i][j] + (sampleTaskDuration > deadline)*1
                 rewardMeasurements_MCSP[j][t] = (mcsp_utility[i][j]- np.min([mcsp_utility[i][j], usersCurrentBidOnTask[i] + mcsp_utility[i][j],
-                                                   costPerSecond * (1 + maxAllowedMarge) * sampleTaskDuration])) * (
+                                                   costPerSecond[i] * (1 + maxAllowedMarge) * sampleTaskDuration])) * (
                                                        sampleTaskDuration <= deadline)  # reward # todo: reward hier rein oder wo anders?
 
         taskPreferenceMeasurements[t] = test_on_preference(task_duration, estimated_task_duration, noOfTimesVisited, t)
@@ -325,15 +325,15 @@ def doMonteCarrloIterations(noOfMonteCarloIterations, noOfUsers, noOfTasks, T, t
 def print_hi(name):
     use_ray = False
     customName = "random"
-    resultsFileName = "10m120"
+    resultsFileName = "10m15aa"
 
     noOfTasks = 10
-    noOfUsers = 120
+    noOfUsers = 15
 
     deadline = 0.8
 
-    revenuePerMbit = 0.09  # revenue fopr mcsp: €/Mbit for mcsp
-    costPerSecond = 0.06  # cost for users:   €/sec for users
+    revenuePerMbit = 0.1  # revenue fopr mcsp: €/Mbit for mcsp
+    costPerSecond = [0.40]*noOfUsers# + np.random.random(noOfUsers)*0.1  # cost for users:   €/sec for users
 
     T = 1200
     lambda_var = 0.1
@@ -342,30 +342,27 @@ def print_hi(name):
     maxAllowedMarge = 100.1
     explore_var = 1  # 100: start decrasing from t=100
     sampling_noise = 0.01  # 0.01
-    activateBurst_e = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    activateBurst_e = [0, 0, 0, 0,0, 0, 0, 0,0, 0, 0, 0, 0, 0, 0, 0]
 
-    takeNothingIfNegativeReward_e = [True, True, True, True, True, True, True, True, True, True, True, True, True, True,
-                                     True]  # todo: true after a delay, to prevent task=-1 assignment if bids were to low at beginning
-    enableNoAccessCount_e = [True, True, True, True, True, True, True, True, True, True, True, True, False, False,
-                             False]
-    rewardSensing_i = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]  # 0: original, 1: ignore, 2: pseudo reward
-    noAccessMode_e = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    takeNothingIfNegativeReward_e = 15*[False]#[True, True, True, True,True, True, True, True,True, True, True, True, True, True,
+                                     #True] # todo: true after a delay, to prevent task=-1 assignment if bids were to low at beginning
+    enableNoAccessCount_e = [True, True, True, True, False, False, False]
+    rewardSensing_i = [2, 2, 2, 2, 2, 2, 2]  # 0: original, 1: ignore, 2: pseudo reward
+    noAccessMode_e = [0, 0, 0, 0, 0, 0, 0]
     countDegradeRate = 8
     countStartTime = 0
-    countEndTime_e = [500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500, 500]  # used
-    countInfluence_var_e = [24000, 24000, 24000, 24000, 10000, 10000, 10000, 10000, 17000, 17000, 17000, 17000, 17000,
-                            17000, 17000]
-    countUntilAdjustment_e = [150, 15, 30, 60, 150, 15, 30, 60, 150, 15, 30, 60, 500, 500, 500]  # used
-    considerPreferenceMCSP_var_e = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0,
-                                    0]  # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
+    countEndTime_e = [300, 300, 300, 300, 500, 500, 500]  # used
+    countInfluence_var_e = [50000, 50000, 50000, 50000, 20000, 20000, 20000]
+    countUntilAdjustment_e = [150, 15, 30, 60,500, 500, 500]  # used
+    considerPreferenceMCSP_var_e = [1, 1, 1, 1, 1, 0, 0]  # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
 
-    epsilon_greedy_e = [True, True, True, True, True, True, True, True, True, True, True, True, True, True, False]
+    epsilon_greedy_e = [True, True, True, True, True, True, False]
 
-    noOfMonteCarloIterations = 200
+    noOfMonteCarloIterations = 10
     showMatrices = False
     checkForStability = False
 
-    noOfExperiments = 15
+    noOfExperiments = 7
 
     print("iterations: " + str(T) + " seconds: " + str(deadline*T))
 
