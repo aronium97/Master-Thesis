@@ -1,5 +1,6 @@
 # This is a sample Python script.
 import copy
+import os
 
 import numpy as np
 import pickle
@@ -17,29 +18,29 @@ from joblib import Parallel, delayed
 #plt.rc('legend',fontsize=6)
 
 # bernd style:
-plt.rc('font', family='lmodern', serif='Times')
+plt.rc('font', family='serif', serif='Times')
 plt.rc('text', usetex=True)
-plt.rc('xtick', labelsize=8)
-plt.rc('ytick', labelsize=8)
-plt.rc('axes', labelsize=8)
-plt.rc('legend', fontsize=8)
+plt.rc('xtick', labelsize=6)
+plt.rc('ytick', labelsize=6)
+plt.rc('axes', labelsize=6)
+plt.rc('legend', fontsize=6)
 #Size calculation
 # width as measured in inkscape
-widthFig = 3.487
-heightFig = widthFig / 1.7
+widthFig = 3.487 / 1.8
+heightFig = widthFig
 #Data for plotting
 xAxisName='X axis'
 yAxisName='Y axis'
 label0 = []
-label0.append('Random')
-label0.append('Greedy')
-label0.append('CA-MAB')
 label0.append('CA-MAB-FS')
+label0.append('CA-MAB')
+label0.append('Greedy')
+label0.append('Random')
 #Color palette and markers
-mycolors = ['#0F7173', '#D8A47F', '#41EAD4', 'red']
+mycolors = ['red', '#0F7173', '#D8A47F', '#41EAD4']
 mymarkers = ['x', 'v', 'x', 'o']
 #Markers on the x axis
-xticks = (0,200,400,600,800,1000,1200)
+xticks = (0,200,500,800,1100)
 xlimits = (0,1200)
 yticks = (1,1.5,2,2.5)
 ylimits = (1,2.5)
@@ -68,7 +69,7 @@ def checkTheStability(data, iExperiment):
     noOfTimesChoosen = data[18][iExperiment]
     freeSensingDone = data[19][iExperiment]
     T = data[20][iExperiment]
-    deadline = data[21][iExperiment]
+    deadline = 1200/T#data[21][iExperiment]
     stableRegret = data[22][iExperiment]
     noOfUsers = data[23][iExperiment]
     choosenTasksMeasurements = data[24][iExperiment]
@@ -89,6 +90,7 @@ def checkTheStability(data, iExperiment):
             # calculate stability: stability no user
             stable = True
             unstableMatchesCount = 0
+            j_unstable = []
             if True:
                 for i in range(0, noOfUsers):
                     stableUser = True
@@ -107,11 +109,13 @@ def checkTheStability(data, iExperiment):
                             if jbetter in list(taskMeasurements[m][:, t]):
                                 iCurrent = list(taskMeasurements[m][:, t]).index(jbetter)
                                 iCurrentIndex = np.where(np.array(prefer_tasks[jbetter]) == iCurrent)[0][0]
-                                if iCurrentIndex > matchIndexTask:
+                                if iCurrentIndex > matchIndexTask and not(jbetter in j_unstable):
                                     stableUser = False
+                                    j_unstable.append(jbetter)
                                     break
-                            else:
+                            elif not(jbetter in j_unstable):
                                 stableUser = False
+                                j_unstable.append(jbetter)
                                 break
 
                     if stableUser == False:
@@ -124,14 +128,22 @@ def checkTheStability(data, iExperiment):
 
 def print_hi(name):
 
+    cumRegretBernd = []
+    stabilityBernd = []
+    overallRewardBernd = []
+    noOfFreeSensingOffersBernd = []
+
+
+
+
     showMatrices = False
     checkForStability = False
 
-    noOfExperiments = 7
+    noOfExperiments = 3
 
     showLatex = False
 
-    flname = "10m15aa"#"legit 10m20 soft braker"
+    flname = "zzz_10m30mitausfallen"#"legit 10m20 soft braker"
     pickelFileName = "autoresults/" + flname
     with open(pickelFileName + ".pkl", 'rb') as f:
         data = pickle.load(f)
@@ -151,28 +163,38 @@ def print_hi(name):
 
         # bernd:
         fig5, ax5 = plt.subplots()
-        fig5.subplots_adjust(left=0.117, bottom=0.176, right=.99, top=.97)
+        fig5.subplots_adjust(left=.20, bottom=.23, right=0.94, top=.72)
         fig6, ax6 = plt.subplots()
-        fig6.subplots_adjust(left=0.117, bottom=0.176, right=.99, top=.97)
+        fig6.subplots_adjust(left=.20, bottom=.23, right=.99, top=.76)
         fig7, ax7 = plt.subplots()
-        fig7.subplots_adjust(left=0.117, bottom=0.176, right=.99, top=.97)
+        fig7.subplots_adjust(left=.20, bottom=.23, right=0.99, top=.72)
         fig8, ax8 = plt.subplots()
-        fig8.subplots_adjust(left=0.117, bottom=0.176, right=.99, top=.97)
+        fig8.subplots_adjust(left=.20, bottom=.23, right=.99, top=.76)
 
 
-
+    if showLatex:
+        expList = list([8,12,13,14])#list([9,12,13,14])#list([4,9,10,11])#list([6,5,4,2])
+    else:
+        expList = range(noOfExperiments)#list([8,12,13,14])#range(noOfExperiments)#list([0,2,4,8,9,10])#
+        #expList = list([5, 12, 13, 14])
 
     if showMatrices: figMatrizes, axsMatrizes = plt.subplots(5, noOfExperiments + 1)
 
     if checkForStability:
-        results = Parallel(n_jobs=noOfExperiments)(
-            delayed(checkTheStability)(data, iExperiment) for iExperiment in
-            range(noOfExperiments))
-    if showLatex:
-        expList = list([3,12,13,14])#list([6,5,4,2])
-    else:
-        expList = range(noOfExperiments)#list([3,12,13,14])#
-        #expList = list([5, 12, 13, 14])
+        stableValsFileName = pickelFileName + "stableVals" + ".pkl"
+        if os.path.isfile(stableValsFileName):
+            print("stableVals exists")
+            with open(stableValsFileName, 'rb') as f:
+                results = pickle.load(f)
+        else:
+            print("recalculate stableVals")
+            results = Parallel(n_jobs=noOfExperiments)(
+                delayed(checkTheStability)(data, iExperiment) for iExperiment in
+                expList)  # range(noOfExperiments))
+            with open(stableValsFileName, 'wb') as f:
+                pickle.dump(results, f)
+
+
     maxCumSumRegretEnd = []
     maxCumSumRegretEnd_MCSP = []
     for iExperiment in expList:#range(noOfExperiments):#expList:#range(noOfExperiments):
@@ -198,7 +220,7 @@ def print_hi(name):
         noOfTimesChoosen = data[18][iExperiment]
         freeSensingDone = data[19][iExperiment]
         T = data[20][iExperiment]
-        deadline = data[21][iExperiment]
+        deadline = 1#1/1.1#data[21][iExperiment]
         stableRegret = data[22][iExperiment]
         noOfUsers = data[23][iExperiment]
         choosenTasksMeasurements = data[24][iExperiment]
@@ -214,7 +236,7 @@ def print_hi(name):
         rewardMeasurements_MCSP = data[59][iExperiment]
 
         if checkForStability:
-            stability, noOfUnstableMatches = results[iExperiment]
+            stability, noOfUnstableMatches = results[expList.index(iExperiment)]
 
         print("//////////// experiment " + str(iExperiment))
 
@@ -234,7 +256,7 @@ def print_hi(name):
         print("pessimal match: " + str(pessimalAssignment))
         # ----------------------------------------------------
 
-        subsampled_idx = np.arange(0, T, 60)
+        subsampled_idx = np.arange(0, T,100)
 
         # plot regret
         axs[0, 0].plot(np.arange(1, T+1)*deadline, stableRegret.transpose())
@@ -249,12 +271,11 @@ def print_hi(name):
         #axs[2, 2].plot(np.arange(1, T + 1) * deadline,
         #               np.cumsum(np.sum(meanOptimalReward_MCSP - rewardMeasurements_MCSP.transpose(), 1)))
         axs[2, 2].plot(np.arange(1, T + 1) * deadline,
-                       np.max(np.cumsum(np.array(meanOptimalReward_MCSP - rewardMeasurements_MCSP.transpose()),
-                                        1).transpose(), 0))
+                       np.cumsum(np.sum(np.array(rewardMeasurements_MCSP.transpose()), 1).transpose()))
         axs[2, 2].set_title('average stable mcsp regret over time steps')
         axs[2, 2].set_xlabel("seconds s ")
-        maxCumSumRegretEnd_MCSP.append(np.max(np.cumsum(np.array(meanOptimalReward_MCSP - rewardMeasurements_MCSP.transpose()),
-                                        1).transpose(), 0)[-1])
+        maxCumSumRegretEnd_MCSP.append(
+            np.cumsum(np.sum(np.array(rewardMeasurements_MCSP.transpose()), 1).transpose())[-1])
 
 
 
@@ -275,7 +296,7 @@ def print_hi(name):
         # todo: achutng, noise!!! wird immer leicht nach oben vershcoben sein ??
 
         # plot max cum regret
-        axs2[0].plot(np.arange(1, T + 1)*deadline, np.max(np.cumsum(np.array(stableRegret),1).transpose(), 1))
+        axs2[0].plot(np.arange(1, T + 1)*deadline, [np.max(np.cumsum(np.array(stableRegret),1).transpose(), 1)[i-1]/i for i in range(1,T+1)])
         if iExperiment==noOfExperiments-1:
             axs2[0].plot(np.arange(1, T + 1)*deadline, np.max([pessimalOptimalGap*t*deadline for t in range(1,(T+1))], 1), color='r', linestyle='--')
         axs2[0].set_xlabel("seconds s")
@@ -284,25 +305,33 @@ def print_hi(name):
 
         # h: plot max cum regret
         if showLatex:
-            axsh[0].plot(subsampled_idx * deadline, np.max(np.cumsum(np.array(stableRegret), 1).transpose()[subsampled_idx], 1), marker=mymarkers[expList.index(iExperiment)], markersize=5, color=mycolors[expList.index(iExperiment)])
+            axsh[0].plot(subsampled_idx * deadline, np.max(np.cumsum(np.array(stableRegret), 1).transpose()[subsampled_idx], 1), marker=mymarkers[expList.index(iExperiment)], markersize=4, color=mycolors[expList.index(iExperiment)])
             if iExperiment == 2:
                 axsh[0].plot(subsampled_idx * deadline,
                              np.max([pessimalOptimalGap * t * deadline for t in subsampled_idx], 1), color='r',
                              linestyle='--')
-            axsh[0].set_xlabel("time [s]")
+            axsh[0].set_xlabel("Time [s]")
             axsh[0].set_ylabel(r"$R_k$ [monetary units]")
 
             # h2: plot max cum regret
-            ax5.plot(subsampled_idx * deadline,
+            if iExperiment == 1:
+                ax5.plot(subsampled_idx * deadline,
                          np.max(np.cumsum(np.array(stableRegret), 1).transpose()[subsampled_idx], 1),
-                         marker=mymarkers[expList.index(iExperiment)], markersize=5,
-                         color=mycolors[expList.index(iExperiment)])
-            if iExperiment == 2:
+                         color=mycolors[expList.index(iExperiment)], label=label0[expList.index(iExperiment)])
+            else:
+                ax5.plot(subsampled_idx * deadline,
+                             np.max(np.cumsum(np.array(stableRegret), 1).transpose()[subsampled_idx], 1),
+                             marker=mymarkers[expList.index(iExperiment)], markersize=4,
+                             color=mycolors[expList.index(iExperiment)], label=label0[expList.index(iExperiment)])
+            if iExperiment == 6:
                 ax5.plot(subsampled_idx * deadline,
                              np.max([pessimalOptimalGap * t * deadline for t in subsampled_idx], 1), color='r',
-                             linestyle='--')
-            ax5.set_xlabel("time [s]")
+                             linestyle='--', label="Galey-Shapley")
+            ax5.set_xlabel("Time [s]")
             ax5.set_ylabel(r"$R_k$ [monetary units]")
+
+            # bernd var:
+            cumRegretBernd.append(np.max(np.cumsum(np.array(stableRegret), 1).transpose(), 1))
 
         # plot estimated preferences over time
         axs[1, 1].plot([i*deadline for i in range(0, T)], taskPreference.T)
@@ -331,21 +360,30 @@ def print_hi(name):
 
             if showLatex:
                 #h:
-                axsh[2].plot([i * deadline for i in range(1, T)], stability[1:], marker=mymarkers[expList.index(iExperiment)], markersize=5, color=mycolors[expList.index(iExperiment)])
+                axsh[2].plot([i * deadline for i in range(1, T)], stability[1:], marker=mymarkers[expList.index(iExperiment)], markersize=4, color=mycolors[expList.index(iExperiment)])
                 axsh[2].set_title('probability of stability')
-                axsh[2].set_xlabel("time [s]")
+                axsh[2].set_xlabel("Time [s]")
 
                 #h2:
-                ax8.plot([i * deadline for i in range(1, T)], stability[1:],
-                             marker=mymarkers[expList.index(iExperiment)], markersize=5,
-                             color=mycolors[expList.index(iExperiment)])
-                ax8.set_title('probability of stability')
-                ax8.set_xlabel("time [s]")
+                if iExperiment == 1:
+                    ax8.plot([i * deadline for i in subsampled_idx], noOfUnstableMatches[1:][subsampled_idx],
+                             color=mycolors[expList.index(iExperiment)], label=label0[expList.index(iExperiment)])
+                else:
+                    ax8.plot([i * deadline for i in subsampled_idx], noOfUnstableMatches[1:][subsampled_idx],
+                                 marker=mymarkers[expList.index(iExperiment)], markersize=4,
+                                 color=mycolors[expList.index(iExperiment)], label=label0[expList.index(iExperiment)])
+                ax8.set_ylabel("Number of blocking pairs")
+                ax8.set_xlabel("Time [s]")
+
+
 
 
             axs2[3].plot([i * deadline for i in range(1, T)], noOfUnstableMatches[1:])
             axs2[3].set_title('no. of unstable matches over t (based on true values)')
             axs2[3].set_xlabel("seconds")
+
+            # bernd var
+            stabilityBernd.append(noOfUnstableMatches)
 
         # plot exploration var over time
         axs[1, 3].plot([i*deadline for i in range(1, T)], [((1 / t * explore_var)*((1 / t * explore_var)<=1) + ((1 / t * explore_var)>1)*1) for t in range(1, T)])
@@ -353,25 +391,26 @@ def print_hi(name):
         axs[1, 3].set_title('exploration probability over time')
 
         # plot freesensingDone over time
-        axs[2, 3].plot([i * deadline for i in range(0, T)], np.cumsum(freeSensingDone))
+        axs[2, 3].plot([i * deadline for i in range(0, T)], np.cumsum(freeSensingDone)) #[np.cumsum(freeSensingDone)[i-1]/(i*noOfTasks) for i in range(1,T+1)])
         axs[2, 3].set_xlabel("seconds")
         axs[2, 3].set_title('cumulative no. of free sensing bids')
 
         if showLatex:
             # h: plot freesensingDone over time
             if iExperiment == 2:
-                axsh[3].plot([i * deadline for i in subsampled_idx], np.cumsum(freeSensingDone)[subsampled_idx], marker=mymarkers[expList.index(iExperiment)], markersize=5, color=mycolors[expList.index(iExperiment)])
-                axsh[3].set_xlabel("time [s]")
+                axsh[3].plot([i * deadline for i in subsampled_idx], np.cumsum(freeSensingDone)[subsampled_idx], marker=mymarkers[expList.index(iExperiment)], markersize=4, color=mycolors[expList.index(iExperiment)])
+                axsh[3].set_xlabel("Time [s]")
                 axsh[3].set_ylabel("cumulated number of free-sensing bids")
 
             # h2: plot freesensingDone over time
-            if iExperiment == 2:
+            if iExperiment == 1:
                 ax6.plot([i * deadline for i in subsampled_idx], np.cumsum(freeSensingDone)[subsampled_idx],
-                             marker=mymarkers[expList.index(iExperiment)], markersize=5,
-                             color=mycolors[expList.index(iExperiment)])
-                ax6.set_xlabel("time [s]")
-                ax6.set_ylabel("cumulated number of free-sensing bids")
+                             color=mycolors[expList.index(iExperiment)], label=label0[expList.index(iExperiment)])
+                ax6.set_xlabel("Time [s]")
+                ax6.set_ylabel("Free sensing offers")
 
+                # bernd var
+                noOfFreeSensingOffersBernd.append(np.cumsum(freeSensingDone))
 
         # plot global reward over time
         axs2[2].plot([i*deadline for i in range(0, T)], globalReward)
@@ -382,22 +421,30 @@ def print_hi(name):
 
         if showLatex:
             # h: plot global reward over time
-            axsh[1].plot([i * deadline for i in subsampled_idx], globalReward[subsampled_idx], marker=mymarkers[expList.index(iExperiment)], markersize=5, color=mycolors[expList.index(iExperiment)])
+            axsh[1].plot([i * deadline for i in subsampled_idx], globalReward[subsampled_idx], marker=mymarkers[expList.index(iExperiment)], markersize=4, color=mycolors[expList.index(iExperiment)])
             axsh[1].set_ylabel(r'$U_t^{SW}$ [monetary units]')
-            axsh[1].set_xlabel("time [s]")
-            if iExperiment == 2:
+            axsh[1].set_xlabel("Time [s]")
+            if iExperiment == 6:
                 axsh[1].axhline(y=np.max(globRew, 0), color='r', linestyle='--')
             axsh[1].set_ylim([1.4, globRew + 0.1])
 
             # h2: plot global reward over time
-            ax7.plot([i * deadline for i in subsampled_idx], globalReward[subsampled_idx],
-                         marker=mymarkers[expList.index(iExperiment)], markersize=5,
-                         color=mycolors[expList.index(iExperiment)])
+            if iExperiment == 1: #i * deadline for i in subsampled_idx
+                ax7.plot([i*deadline for i in range(0, T)], globalReward,
+                         color=mycolors[expList.index(iExperiment)], label=label0[expList.index(iExperiment)])
+            else:
+                ax7.plot([i*deadline for i in range(0, T)], globalReward,
+                             marker=mymarkers[expList.index(iExperiment)], markersize=4,markevery=100,
+                             color=mycolors[expList.index(iExperiment)], label=label0[expList.index(iExperiment)])
             ax7.set_ylabel(r'$U_t^{SW}$ [monetary units]')
-            ax7.set_xlabel("time [s]")
-            if iExperiment == 2:
-                ax7.axhline(y=np.max(globRew, 0), color='r', linestyle='--')
-            ax7.set_ylim([1.4, globRew + 0.1])
+            ax7.set_xlabel("Time [s]")
+            overallRewardBernd.append(globalReward)
+            if iExperiment == 6:
+                ax7.axhline(y=np.max(globRew, 0), color='r', linestyle='--', label="Optimum")
+                overallRewardBernd.append(np.max(globRew, 0))
+            ax7.set_ylim([0, globRew + 0.1])
+
+
 
 
         #print("measured rewards: " + str(rewardMeasurements))
@@ -459,31 +506,44 @@ def print_hi(name):
 
     if showLatex:
 
-        axsh[0].legend(["random", "greedy", "ucb-ua", "ucb-ua-fs", "galey-shapley"])
-        axsh[1].legend(["random", "greedy", "ucb-ua", "ucb-ua-fs", "optimum"], loc='lower left')
-        axsh[2].legend(["random", "greedy", "ucb-ua", "ucb-ua-fs"])
-        axsh[3].legend(["ucb-ua-fs"])
+
 
         # --------------------  Bernd:
         #------------------------------
-        #ax5.xticks(xticks)
+        ax5.set_xticks(xticks, minor=False)
+        ax6.set_xticks(xticks, minor=False)
+        ax7.set_xticks(xticks, minor=False)
+        ax8.set_xticks(xticks, minor=False)
         #plt5.xlim(xlimits)
         #plt5.yticks(yticks)
         #plt5.ylim(ylimits)
         #plt5.grid(linestyle='--')
-        ax5.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.45))
-        ax6.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.45))
-        ax7.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.45))
-        ax8.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.45))
-        fig5.set_size_inches(widthFig, heightFig)
-        fig6.set_size_inches(widthFig, heightFig)
-        fig7.set_size_inches(widthFig, heightFig)
-        fig8.set_size_inches(widthFig, heightFig)
         ax5.grid(linestyle='--')
         ax6.grid(linestyle='--')
         ax7.grid(linestyle='--')
         ax8.grid(linestyle='--')
 
+        ax5.legend(["CA-MAB-FS", "CA-MAB","Greedy","Random",  "Galey-Shapley"])
+        ax6.legend(["CA-MAB-FS"])
+        ax7.legend(["CA-MAB-FS", "CA-MAB","Greedy","Random", "Optimum"])
+        ax8.legend(["CA-MAB-FS", "CA-MAB","Greedy", "Random"  ])
+
+        #ax5.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.305, 1.62))
+        #ax6.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.23, 1.38))
+        #ax7.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.23, 1.62))
+        #ax8.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.23, 1.48))
+        ax5.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.52))
+        ax6.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.28))
+        ax7.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.52))
+        ax8.legend(loc='upper left', handletextpad=0.4, ncol=2, columnspacing=0.4, bbox_to_anchor=(-0.03, 1.38))
+        ax8.minorticks_on()
+        ax8.tick_params(axis='x', which='minor', direction='out')
+        ax7.minorticks_on()
+        ax7.tick_params(axis='x', which='minor', direction='out')
+        ax6.minorticks_on()
+        ax6.tick_params(axis='x', which='minor', direction='out')
+        ax5.minorticks_on()
+        ax5.tick_params(axis='x', which='minor', direction='out')
     # end bernd----------------------
     #--------------------------------
 
@@ -495,8 +555,26 @@ def print_hi(name):
     for i in range(len(maxCumSumRegretEnd_MCSP)):
         print("EXP" + str(i) + ": " +  "-- regret MUs: " + str(maxCumSumRegretEnd[i]) + " -- regret mcsp: " + str(maxCumSumRegretEnd_MCSP[i]))
 
-    plt.tight_layout()
+    #plt.tight_layout()
+    if showLatex:
+        fig5.set_size_inches(widthFig, heightFig)
+        fig6.set_size_inches(widthFig, heightFig)
+        fig7.set_size_inches(widthFig, heightFig)
+        fig8.set_size_inches(widthFig, heightFig)
+        fig5.savefig('plot1.pdf')
+        fig6.savefig('plot2.pdf')
+        fig7.savefig('plot3.pdf')
+        fig8.savefig('plot4.pdf')
+
+    # bernd speichern:
+    paperVarsFileName = "paperVars" + ".pkl"
+    dataExpected = [cumRegretBernd, overallRewardBernd, stabilityBernd, noOfFreeSensingOffersBernd]
+    with open(paperVarsFileName, 'wb') as f:
+        pickle.dump(dataExpected, f)
+
     plt.show()
+
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
