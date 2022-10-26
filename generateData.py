@@ -92,10 +92,10 @@ def vis_random_location_process(num_pt, geo_df):
 
 
 
-customName = "random_hhoherPrice"
+customName = "random"
 
-noOfTasks = 10
-noOfUsers = 15
+noOfTasks = 3
+noOfUsers = 3
 
 pickelFileName = "data/" + str(noOfTasks) + str(noOfUsers) + str(customName)
 
@@ -128,11 +128,14 @@ task_sizes = np.linspace(1,7,40)#, size=noOfTasks)#[1,3,7]# [1,5,3,2,4]
 revenuePerMbit = 0.09 # revenue fopr mcsp: €/Mbit for mcsp
 costPerSecond = 0.02 # cost for users:   €/sec for users
 
-T = 2000
+T = 3000
+
+pAvailability = 0.5
+noOfOuttakes = 1
 
 # for tests:
 maxMarge = 0.1
-deadline = 1
+deadline = 7 #aarontodo
 pMoreThan = 0.8
 
 # get distances
@@ -153,9 +156,9 @@ if os.path.isfile(alphakFileName):
     with open(alphakFileName, 'rb') as f:
         alpha_k = pickle.load(f)
 else:
-    print("recalculate alphak")
-    alpha_k = np.random.choice(task_sizes, noOfTasks,
-                               replace=False)  # np.random.uniform(low=10, high=40, size=noOfTasks)#np.random.choice(task_sizes, noOfTasks)
+    print("recalculate alphak") #aarontodo
+    alpha_k = np.ones(noOfTasks)#np.random.choice(task_sizes, noOfTasks,
+                               #replace=False)  # np.random.uniform(low=10, high=40, size=noOfTasks)#np.random.choice(task_sizes, noOfTasks)
     with open(alphakFileName, 'wb') as f:
         pickle.dump(alpha_k, f)
 # calculate availabilities
@@ -166,7 +169,15 @@ if os.path.isfile(availabilitiesFileName):
         availabilities = pickle.load(f)
 else:
     print("recalculate availabilities")
-    availabilities = np.random.binomial(size=[noOfTasks,T], n=1, p= 0.7)
+    #availabilities = np.vstack([np.ones([noOfTasks-noOfOuttakes,T]).astype(int), np.random.binomial(size=[noOfOuttakes,T], n=1, p= pAvailability).astype(int)])#np.random.binomial(size=[noOfTasks,T], n=1, p= pAvailability)
+    # aarontodo
+
+
+    # bernd test case 2:
+    availabilities = np.vstack([[np.concatenate([np.ones(T - len([1, 0, 0] * 500)).astype(int), np.random.binomial(size=1500, n=1, p= pAvailability).astype(int)])], np.ones([noOfTasks - noOfOuttakes, T]).astype(int)])  # np.random.binomial(size=[noOfTasks,T], n=1, p= pAvailability)
+
+    # for bernd case:
+    #availabilities = np.vstack([[np.concatenate([np.ones(T - len([1,0,0]*500)).astype(int) , [1,0,0]*500])], np.ones([noOfTasks - noOfOuttakes, T]).astype(int)])  # np.random.binomial(size=[noOfTasks,T], n=1, p= pAvailability)
     with open(availabilitiesFileName, 'wb') as f:
         pickle.dump(availabilities, f)
 
@@ -181,6 +192,11 @@ t_upload = (1/np.reshape(gamma_i, [-1, 1])) * (np.ones([noOfUsers, noOfTasks]) +
 
 #task_duration = np.array([[0.6,0.1], [0.9,0.3]])#np.array([[3,2], [5,4]])# np.array([[0.6,0.5], [0.9,0.8]])
 
+#mcsp_utility_without_revenue = np.array([[3,4,6],[3,4,6],[3,4,6]]).astype(int) #aarontodo
+#t_processing = np.array([[0,0,0],[0,0,0],[0,0,0]])
+#t_upload = np.array([[1,0.8,0.3],
+                     #[3.1,1,0.5],
+                     #[3,3,0.8]])
 
 # test for strict ordering
 for i in range(0, noOfTasks):
@@ -215,7 +231,6 @@ print(np.mean(np.mean(mcsp_utility_without_revenue*revenuePerMbit > (1+maxMarge)
 #task_duration = np.arange(noOfUsers) + 6*np.diag(np.ones([noOfUsers]))# + np.random.rand(noOfUsers,noOfTasks)#np.random.rand(noOfUsers,noOfTasks) + #10*np.random.rand(noOfUsers,noOfTasks)##np.random.rand(noOfUsers,noOfTasks)#100*np.diag(np.ones([noOfUsers]))#
 #task_duration -= np.diag(np.arange(noOfUsers))
 #estimated_task_duration = np.zeros([noOfUsers,noOfTasks])# + np.random.rand(noOfUsers,noOfTasks)
-
 
 data = [t_processing, t_upload, mcsp_utility_without_revenue]
 # Saving the objects:
