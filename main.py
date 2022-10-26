@@ -186,7 +186,7 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
     sameTasksInARow = np.zeros(noOfUsers)
     lastPlausibleSets = np.zeros([noOfUsers, noOfTasks])
     lastTask = -1*np.ones(noOfUsers)
-    predictedPlausibleSet = (np.zeros(([noOfUsers, noOfTasks, 2**noOfTasks])), np.zeros(([noOfUsers, noOfTasks, 2**noOfTasks])))
+    predictedPlausibleSet = (np.ones(([noOfUsers, noOfTasks, 2**noOfTasks])), np.zeros(([noOfUsers, noOfTasks, 2**noOfTasks])), np.zeros(([noOfUsers, noOfTasks, 2**noOfTasks])))
 
 
 
@@ -230,17 +230,20 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
                         considerPreferenceMCSP = np.random.uniform(0, 1) <= considerPreferenceMCSP_var
                         if considerPreferenceMCSP:
                             taskIsPlausible = taskIsPlausible and ((testBid - mcsp_utility[i][j]) <= lastBidOnTask[j] or performedTasks[j] == i)
+                        if doPlausibleSetPrediction:
+                            if t>1400:#200<predictedPlausibleSet[1][i, j, get_state(task_availabilities[:, t - 1], [], [], 1, [])]:#(np.random.uniform(0, 1) > 1/(t*explore_var+1)) * 1:#t>500:# 0.9 < predictedPlausibleSet[2][i, j, get_state(task_availabilities[:, t - 1], [], [], 1, [])]: #t > 0:
+                                predictionAccuracy = 1#1/t*predictedPlausibleSet[1][i,j,get_state(task_availabilities[:,t-1], [], [], 1, [])]
+                            else:
+                                predictionAccuracy = 0
+                            predictedPlausibility = predictedPlausibleSet[0][i, j, get_state(task_availabilities[:, t - 1], [], [], 1, [])]
+                            taskIsPlausible = (taskIsPlausible * (1 - predictionAccuracy) + (predictedPlausibility > 0.5) * predictionAccuracy) > 0.5
                         if isAvailable:
                             taskIsPlausible = taskIsPlausible and task_availabilities[j, t-1]#(np.random.uniform(0, 1) <= 0.3)
-                        if doPlausibleSetPrediction:
-                            predictedPlausibility = predictedPlausibleSet[0][i,j,get_state(task_availabilities[:,t-1], [], [], 1, [])]
-                            predictionAccuracy = 1/t*predictedPlausibleSet[1][i,j,get_state(task_availabilities[:,t-1], [], [], 1, [])]
-                            taskIsPlausible = (taskIsPlausible*(1-predictionAccuracy) + predictedPlausibility*predictionAccuracy) > 0.5
                         if taskIsPlausible:
                             plausibleTasks[j] = 1
                             testedBids[j] = testBid - mcsp_utility[i][j]
                             #noAccessCounter[i][j] = 0#np.max([0, noAccessCounter[i][j] - countDegradeRate])
-                            #lastBidAccepted[i][j] = np.max([lastBidAccepted[i][j], testBid])
+                            #lastBidAccepted[i][j] = np.max([lastBidAccepted[i][j], testöBid])
                             lastWasAccepted[i][j] = True
                         else:
                             noAccessCounter[i][j] += np.min([1,(t/countInfluence_var)*(t<countEndTime)]) # determmnistic: (countEndTime>t)*t/(countInfluence_var)#1*(countEndTime-t)/t
@@ -284,11 +287,17 @@ def ucb_ca(noOfUsers, noOfTasks, T, task_duration, mcsp_utility, marge, lambda_v
                     performedTasks[choosenTasks[i]] = i
                     lastBidOnTask[choosenTasks[i]] = usersCurrentBidOnTask[i]
                     tasksHaveUser[choosenTasks[i]] = True
-                elif newGreedy:
+                elif newGreedy:# or (doPlausibleSetPrediction and t<1000):
                     estimated_task_reward[i,choosenTasks[i],get_state(task_availabilities[:,t-1], lastPlausibleSets[i], [3, estimated_task_reward_without_state[i]], context, t)] = 0 * forgettingDuration_var_i + estimated_task_reward[i,
                         choosenTasks[i],get_state(task_availabilities[:,t-1], lastPlausibleSets[i], [3, estimated_task_reward_without_state[i]], context, t)] * (1 - forgettingDuration_var_i)
 
                 if doPlausibleSetPrediction:
+                    # update trustability
+                    predictedPlausibility = 0.5 < predictedPlausibleSet[2][i, choosenTasks[i], get_state(task_availabilities[:, t - 1], [], [], 1, [])]
+                    if taskAcceptedUser == predictedPlausibility:
+                        predictedPlausibleSet[2][i, choosenTasks[i], get_state(task_availabilities[:, t - 1], [], [], 1, [])] = 0.5 + predictedPlausibleSet[2][i, choosenTasks[i], get_state(task_availabilities[:, t - 1], [], [], 1, [])]*0.5
+                    else:
+                        predictedPlausibleSet[2][i, choosenTasks[i], get_state(task_availabilities[:, t - 1], [], [], 1, [])] *= 0.5
                     noOfTimesUpdated = predictedPlausibleSet[1][i,choosenTasks[i],get_state(task_availabilities[:,t-1], [], [], 1, [])]
                     # update mean value
                     predictedPlausibleSet[0][i,choosenTasks[i],get_state(task_availabilities[:,t-1], [], [], 1, [])] = noOfTimesUpdated/(1+noOfTimesUpdated)*predictedPlausibleSet[0][i,choosenTasks[i],get_state(task_availabilities[:,t-1], [], [], 1, [])] + 1/(1+noOfTimesUpdated)*taskAcceptedUser
@@ -415,11 +424,11 @@ def print_hi(name):
     revenuePerMbit = 0.09  # revenue fopr mcsp: €/Mbit for mcsp
     costPerSecond = noOfUsers * [0.02]
     T = 3000
-    lambda_var = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.0]
+    lambda_var = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     forgettingDuration_var = (1, 0.99) # start, decay with time
     marge = 0.1
     maxAllowedMarge = 100.1
-    explore_var = [0.1, 0.1, 0.05, 0.05, 0.5, 0.5, 0.01]
+    explore_var = [0.1, 0.1, 0.1, 0.5, 0.5, 0.5, 0.1]
     sampling_noise = 0.01  # 0.01
     activateBurst_e = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
@@ -435,19 +444,19 @@ def print_hi(name):
     countUntilAdjustment_e = [500, 500, 500, 500, 500, 500, 500]
     considerPreferenceMCSP_var_e = [1, 1, 1, 1, 1, 1, 0] # prob. for considering mcsp prefernce list for plausible list (1= consider it always)
 
-    epsilon_greedy_e = [True, True, True, True, True, True, False]
-    newGreedy_e = [False, False, False, False, False, False, False]
+    epsilon_greedy_e = [True, True, True, True, True, True, True]
+    newGreedy_e = [False, False, False, False, False, False, True]
 
     isAvailable_e = [True, True, True, True, True, True, True]
 
-    context_e = [0, 1, 0, 1, 0, 1, 0]
-    doPlausibleSetPrediction_e = [1,0,0,0,0]
+    context_e = [0, 1, 0, 0, 1, 0, 0]
+    doPlausibleSetPrediction_e = [1,0,0,0,0,0,0]
 
-    noOfMonteCarloIterations = 200
+    noOfMonteCarloIterations = 30
     showMatrices = False
     checkForStability = False
 
-    expList = list([0,1]) #range(len(epsilon_greedy_e)) #
+    expList = list([0,2,6]) #range(len(epsilon_greedy_e)) #
 
     print("iterations: " + str(T) + " seconds: " + str(deadline*T))
 
@@ -570,6 +579,7 @@ def print_hi(name):
 
     fig, axs = plt.subplots(3, 4)
     fig2, axs2 = plt.subplots(1, 4)
+    fig3, axs3 = plt.subplots(2, max(2,len(expList)))
     fig.canvas.manager.set_window_title('MAIN 1')
     fig2.canvas.manager.set_window_title('MAIN 1')
 
@@ -709,10 +719,10 @@ def print_hi(name):
                 choosenTasksMeasurementsAVG += choosenTasksMeasurements[iIndex]
             choosenTasksMeasurementsAVG /= len(choosenTasksMeasurements)
 
-            axs[0, 2].plot([i*deadline for i in range(0, T)], choosenTasksMeasurementsAVG.T)
-            axs[0, 2].set_xlabel("seconds")
-            axs[0, 2].set_title('choosen arms over time (m=0) \n(legend: optimal ass. from users persp.)')
-            axs[0, 2].legend([i for i in tasks_of_users_optimal_stablematch])
+            axs3[0, expList.index(iExperiment)].plot([i*deadline for i in range(0, T)], choosenTasksMeasurementsAVG.T)
+            axs3[0, expList.index(iExperiment)].set_xlabel("seconds")
+            axs3[0, expList.index(iExperiment)].set_title('choosen arms over time (m=0) \n(legend: optimal ass. from users persp.)')
+            axs3[0, expList.index(iExperiment)].legend([i for i in tasks_of_users_optimal_stablematch])
 
 
             # plot taken arms over time
@@ -723,10 +733,11 @@ def print_hi(name):
                 takenTasksMeasurementsAVG += taskMeasurements[iIndex]
             takenTasksMeasurementsAVG /= len(taskMeasurements)
 
-            axs[0, 1].plot([i*deadline for i in range(0, T)], takenTasksMeasurementsAVG.T)
-            axs[0, 1].set_xlabel("seconds")
-            axs[0, 1].set_title('taken arms over time (m=0) \n(legend: optimal ass. from users persp.)')
-            axs[0, 1].legend([i for i in tasks_of_users_optimal_stablematch])
+            axs3[1, expList.index(iExperiment)].plot([i*deadline for i in range(0, T)], takenTasksMeasurementsAVG.T)
+            axs3[1, expList.index(iExperiment)].set_xlabel("seconds")
+            axs3[1, expList.index(iExperiment)].set_title('taken arms over time (m=0) \n(legend: optimal ass. from users persp.)')
+            axs3[1, expList.index(iExperiment)].legend([i for i in tasks_of_users_optimal_stablematch])
+
 
         # plot stability over time
         if checkForStability:
