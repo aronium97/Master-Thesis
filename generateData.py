@@ -157,8 +157,7 @@ if os.path.isfile(alphakFileName):
         alpha_k = pickle.load(f)
 else:
     print("recalculate alphak") #aarontodo
-    alpha_k = np.ones(noOfTasks)#np.random.choice(task_sizes, noOfTasks,
-                               #replace=False)  # np.random.uniform(low=10, high=40, size=noOfTasks)#np.random.choice(task_sizes, noOfTasks)
+    alpha_k = np.random.choice(task_sizes, noOfTasks, replace=False)  #np.ones(noOfTasks)## np.random.uniform(low=10, high=40, size=noOfTasks)#np.random.choice(task_sizes, noOfTasks)
     with open(alphakFileName, 'wb') as f:
         pickle.dump(alpha_k, f)
 # calculate availabilities
@@ -174,10 +173,10 @@ else:
 
 
     # bernd test case 2:
-    availabilities = np.vstack([[np.concatenate([np.ones(T - len([1, 0, 0] * 500)).astype(int), np.random.binomial(size=1500, n=1, p= pAvailability).astype(int)])], np.ones([noOfTasks - noOfOuttakes, T]).astype(int)])  # np.random.binomial(size=[noOfTasks,T], n=1, p= pAvailability)
+    #availabilities = np.vstack([[np.concatenate([np.ones(T - len([1, 0, 0] * 500)).astype(int), np.random.binomial(size=1500, n=1, p= pAvailability).astype(int)])], np.ones([noOfTasks - noOfOuttakes, T]).astype(int)])  # np.random.binomial(size=[noOfTasks,T], n=1, p= pAvailability)
 
     # for bernd case:
-    #availabilities = np.vstack([[np.concatenate([np.ones(T - len([1,0,0]*500)).astype(int) , [1,0,0]*500])], np.ones([noOfTasks - noOfOuttakes, T]).astype(int)])  # np.random.binomial(size=[noOfTasks,T], n=1, p= pAvailability)
+    availabilities = np.vstack([[np.concatenate([np.ones(T - len([1,0,0]*500)).astype(int) , [1,0,0]*500])], np.ones([noOfTasks - noOfOuttakes, T]).astype(int)])  # np.random.binomial(size=[noOfTasks,T], n=1, p= pAvailability)
     with open(availabilitiesFileName, 'wb') as f:
         pickle.dump(availabilities, f)
 
@@ -185,18 +184,21 @@ else:
 mcsp_utility_without_revenue = 1/(1+distances)*alpha_k
 beta_i = np.random.choice(processing_speed, noOfUsers)
 t_processing = (1/np.reshape(beta_i, [-1, 1])) * (np.ones([noOfUsers, noOfTasks]) + 0*np.random.random([noOfUsers, noOfTasks])) * alpha_k
-gamma_i = np.random.uniform(low=10, high=40, size=noOfUsers)#np.random.choice(upload_speed, noOfUsers) #gamma_i = np.random.uniform(low=10, high=40, size=noOfUsers)#
+gamma_i = np.random.uniform(low=1, high=40, size=noOfUsers)#np.random.choice(upload_speed, noOfUsers) #gamma_i = np.random.uniform(low=10, high=40, size=noOfUsers)#
 t_upload = (1/np.reshape(gamma_i, [-1, 1])) * (np.ones([noOfUsers, noOfTasks]) + 0*np.random.random([noOfUsers, noOfTasks])) * alpha_k
-
 #np.random.shuffle(mcsp_utility_without_revenue)
 
 #task_duration = np.array([[0.6,0.1], [0.9,0.3]])#np.array([[3,2], [5,4]])# np.array([[0.6,0.5], [0.9,0.8]])
 
+mcsp_utility_without_revenue = np.ones([noOfUsers, noOfTasks]).astype(int)#np.array([[3,4,6],[3,4,6],[3,4,6]]).astype(int) #aarontodo
 #mcsp_utility_without_revenue = np.array([[3,4,6],[3,4,6],[3,4,6]]).astype(int) #aarontodo
-#t_processing = np.array([[0,0,0],[0,0,0],[0,0,0]])
+t_processing = np.zeros([noOfUsers, noOfTasks]).astype(int)
 #t_upload = np.array([[1,0.8,0.3],
-                     #[3.1,1,0.5],
-                     #[3,3,0.8]])
+#                     [3.1,1,0.5],
+#                     [3,3,0.8]])
+t_upload = np.arange(1,noOfUsers*noOfTasks+1).reshape(-1,noOfTasks)/(noOfUsers*noOfTasks+1)*deadline/2
+np.random.shuffle(t_upload.flat)
+
 
 # test for strict ordering
 for i in range(0, noOfTasks):
