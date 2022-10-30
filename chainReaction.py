@@ -1,12 +1,11 @@
 import numpy as np
 
-
 def getHighestImpact(users_of_tasks_pessimal_stablematch_e, taskDuration):
     takeFailureIntoLoss = False
     # build the tree
-    highestDamage = 0
-    taskWithHighestDamage = np.nan
-    reactionDuration = 0
+    highestDamage = []
+    taskWithHighestDamage = []
+    reactionDuration = []
     for iTask in range(np.size(taskDuration,1)):
         # user looses the task
         users_of_tasks_pessimal_stablematch = np.copy(users_of_tasks_pessimal_stablematch_e)
@@ -18,13 +17,14 @@ def getHighestImpact(users_of_tasks_pessimal_stablematch_e, taskDuration):
         # to which task will the user travel in the next step?
         np.delete(users_of_tasks_pessimal_stablematch, iTask)
         damage_i, reactionDuration_i = chainReaction(userWhichLoosesTask, damage_i, 0, users_of_tasks_pessimal_stablematch, taskDuration)
-        if damage_i > highestDamage:
-            highestDamage = damage_i
-            taskWithHighestDamage = iTask
-            reactionDuration = reactionDuration_i
 
-    return {"highestDamage": highestDamage, "reactionDuration:": reactionDuration, "taskWithHighestDamage:": taskWithHighestDamage}
+        highestDamage.append(damage_i)
+        taskWithHighestDamage.append(iTask)
+        reactionDuration.append(reactionDuration_i)
 
+
+    sortOrder = np.argsort(highestDamage)
+    return {"highestDamage": np.array(highestDamage)[sortOrder], "reactionDuration": np.array(reactionDuration)[sortOrder], "taskWithHighestDamage": np.array(taskWithHighestDamage)[sortOrder]}
 
 def chainReaction(user, damage, reaction_duration, users_of_tasks_pessimal_stablematch, taskDuration_n):
     taskDuration = np.copy(taskDuration_n)
@@ -50,5 +50,11 @@ def chainReaction(user, damage, reaction_duration, users_of_tasks_pessimal_stabl
     # no more stealing possible
     return damage, reaction_duration
 
+aa = np.array([[0.00200001 ,0.00160002, 0.0006    ],
+ [0.00619999, 0.00200001 ,0.00100008],
+ [0.00599999,0.00600012, 0.00160013]])
+
+bb = np.array([0 ,1 ,2])
+
 chainReaction(0, 0, 0, np.array([2,1]), np.array([[1,2],[1.1,2.2],[1.4,1.9]]))
-print(getHighestImpact(np.array([2,1,0]), np.array([[1,2,3],[1.1,2.2,3.3],[1.4,1.9,3.6]])))
+print(getHighestImpact(bb, aa))
